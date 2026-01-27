@@ -1,4 +1,4 @@
-export type VoiceGender = 'female' | 'male';
+export type VoiceGender = 'female';
 export type VoiceAge = 'young' | 'middle' | 'elderly';
 export type EmotionalState = 'neutral' | 'anxious' | 'pain' | 'confused' | 'frustrated' | 'relieved';
 
@@ -23,7 +23,8 @@ export interface SpeechModifiers {
 }
 
 export const VOICE_PROFILES: VoiceProfile[] = [
-  // Female voices using 'shimmer' - warm, natural conversational voice
+  // Using 'shimmer' - the warmest, most natural conversational voice
+  // Perfect for German with natural intonation and question emphasis
   {
     id: 'female_young',
     name: 'Anna',
@@ -53,37 +54,6 @@ export const VOICE_PROFILES: VoiceProfile[] = [
     pitch: 1.0,
     rate: 1.0,
     description: 'Elderly woman, warm conversational voice',
-  },
-  // Male voices using 'onyx' - deep, natural male voice
-  {
-    id: 'male_young',
-    name: 'Thomas',
-    gender: 'male',
-    age: 'young',
-    openAiVoice: 'onyx',
-    pitch: 1.0,
-    rate: 1.0,
-    description: 'Young man, natural conversational voice',
-  },
-  {
-    id: 'male_middle',
-    name: 'Klaus',
-    gender: 'male',
-    age: 'middle',
-    openAiVoice: 'onyx',
-    pitch: 1.0,
-    rate: 1.0,
-    description: 'Middle-aged man, warm conversational voice',
-  },
-  {
-    id: 'male_elderly',
-    name: 'Heinrich',
-    gender: 'male',
-    age: 'elderly',
-    openAiVoice: 'onyx',
-    pitch: 1.0,
-    rate: 1.0,
-    description: 'Elderly man, calm conversational voice',
   },
 ];
 
@@ -166,13 +136,10 @@ export function getRandomVoice(): VoiceProfile {
   return VOICE_PROFILES[randomIndex];
 }
 
-export function getVoiceByCharacteristics(gender?: VoiceGender, age?: VoiceAge): VoiceProfile {
+export function getVoiceByCharacteristics(_gender?: VoiceGender, age?: VoiceAge): VoiceProfile {
   let filtered = [...VOICE_PROFILES];
   
-  if (gender) {
-    filtered = filtered.filter(v => v.gender === gender);
-  }
-  
+  // All voices are female now for best quality
   if (age) {
     filtered = filtered.filter(v => v.age === age);
   }

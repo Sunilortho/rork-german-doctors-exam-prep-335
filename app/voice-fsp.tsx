@@ -293,87 +293,6 @@ const PATIENT_SCENARIOS: PatientScenario[] = [
     history: 'Osteoporose, nimmt Calcium und Vitamin D, keine Bisphosphonate.',
     category: 'Unfallchirurgie',
   },
-  // Male patients
-  {
-    id: 'male_chest',
-    name: 'Herr Baumann',
-    gender: 'male',
-    age: 'middle',
-    greeting: 'Guten Tag, Baumann ist mein Name.',
-    complaint: 'Ich habe seit zwei Tagen ein starkes Engegefühl in der Brust. Das strahlt in den linken Arm aus.',
-    history: 'Raucher seit 25 Jahren, Übergewicht, Vater hatte Herzinfarkt mit 55.',
-    category: 'Kardiologie',
-  },
-  {
-    id: 'male_diabetes',
-    name: 'Herr Krüger',
-    gender: 'male',
-    age: 'elderly',
-    greeting: 'Grüß Gott, Krüger mein Name.',
-    complaint: 'Meine Füße brennen und kribbeln ständig. Nachts ist es besonders schlimm, ich kann kaum schlafen.',
-    history: 'Diabetes Typ 2 seit 20 Jahren, HbA1c zuletzt 8.5%, nimmt Metformin und Insulin.',
-    category: 'Innere Medizin',
-  },
-  {
-    id: 'male_prostate',
-    name: 'Herr Schwarz',
-    gender: 'male',
-    age: 'elderly',
-    greeting: 'Tag, Schwarz ist mein Name.',
-    complaint: 'Ich muss nachts fünf- bis sechsmal auf die Toilette. Der Strahl ist auch ganz schwach geworden.',
-    history: 'Keine Vorerkrankungen, PSA vor zwei Jahren leicht erhöht.',
-    category: 'Urologie',
-  },
-  {
-    id: 'male_back',
-    name: 'Herr Friedrich',
-    gender: 'male',
-    age: 'middle',
-    greeting: 'Hallo, Friedrich ist mein Name.',
-    complaint: 'Ich habe seit einer Woche starke Rückenschmerzen, die ins linke Bein ausstrahlen. Manchmal kribbelt der Fuß.',
-    history: 'Bandscheibenvorfall vor 5 Jahren, arbeitet im Lager, hebt schwere Sachen.',
-    category: 'Orthopädie',
-  },
-  {
-    id: 'male_gout',
-    name: 'Herr Weber',
-    gender: 'male',
-    age: 'middle',
-    greeting: 'Guten Tag, Weber mein Name.',
-    complaint: 'Mein großer Zeh ist seit gestern Nacht knallrot, geschwollen und tut höllisch weh. Ich kann nicht mal eine Decke drauflegen.',
-    history: 'Bekannte Hyperurikämie, trinkt gerne Bier, isst viel Fleisch.',
-    category: 'Rheumatologie',
-  },
-  {
-    id: 'male_lung',
-    name: 'Herr Hartmann',
-    gender: 'male',
-    age: 'elderly',
-    greeting: 'Tag, Hartmann ist mein Name.',
-    complaint: 'Ich huste seit Wochen und habe Blut im Auswurf gesehen. Ich habe auch fünf Kilo abgenommen.',
-    history: 'Raucher seit 40 Jahren, COPD bekannt, Nachtschweiß seit Wochen.',
-    category: 'Pneumologie',
-  },
-  {
-    id: 'male_anxiety',
-    name: 'Herr Lehmann',
-    gender: 'male',
-    age: 'young',
-    greeting: 'Hallo, Lehmann ist mein Name.',
-    complaint: 'Ich habe plötzlich Herzrasen, Schweißausbrüche und das Gefühl, ich müsste sterben. Das kommt aus dem Nichts.',
-    history: 'Keine Vorerkrankungen, viel Stress bei der Arbeit, erste Episode vor einem Monat.',
-    category: 'Psychiatrie',
-  },
-  {
-    id: 'male_stomach',
-    name: 'Herr Becker',
-    gender: 'male',
-    age: 'young',
-    greeting: 'Guten Tag, Becker mein Name.',
-    complaint: 'Ich habe seit zwei Wochen Oberbauchschmerzen und schwarzen Stuhl. Das macht mir Sorgen.',
-    history: 'Nimmt regelmäßig Ibuprofen wegen Kopfschmerzen, trinkt viel Kaffee.',
-    category: 'Gastroenterologie',
-  },
 ];
 
 const createPatientPrompt = (scenario: typeof PATIENT_SCENARIOS[0], personality: string, emotionalState: EmotionalState) => {
@@ -558,8 +477,8 @@ export default function VoiceFSPScreen() {
       scenario = PATIENT_SCENARIOS.find(s => s.id === selectedScenarioId) || PATIENT_SCENARIOS[0];
     }
     
-    // Select voice based on scenario gender and age for natural matching
-    const voice = getVoiceByCharacteristics(scenario.gender, scenario.age);
+    // Select voice based on scenario age for natural matching
+    const voice = getVoiceByCharacteristics('female', scenario.age);
     
     setCurrentScenario(scenario);
     setCurrentVoice(voice);
@@ -614,18 +533,17 @@ export default function VoiceFSPScreen() {
       
       const pattern = EMOTIONAL_SPEECH_PATTERNS[emotionalState];
       const dynamicRate = calculateDynamicSpeed(voice.rate, emotionalState);
+      const pitch = voice.pitch * pattern.pitchModifier;
       
       // Get available voices and find appropriate German voice based on patient gender
       const voices = await Speech.getAvailableVoicesAsync();
       const germanVoices = voices.filter(v => v.language.startsWith('de'));
       
-      // Extended voice name patterns for better detection
-      const femaleNames = ['anna', 'petra', 'helena', 'marlene', 'vicki', 'female', 'frau', 'maria', 'sabine', 'eva', 'julia', 'katrin', 'woman', 'girl'];
-      const maleNames = ['stefan', 'markus', 'hans', 'male', 'mann', 'herr', 'thomas', 'martin', 'andreas', 'michael', 'peter', 'klaus', 'man', 'boy', 'daniel', 'florian'];
+      // Common German voice name patterns
+      const femaleNames = ['anna', 'petra', 'helena', 'marlene', 'vicki', 'female', 'frau'];
+      const maleNames = ['stefan', 'markus', 'hans', 'male', 'mann', 'herr'];
       
       let germanVoice;
-      let basePitch: number;
-      
       if (patientGender === 'female') {
         // Try to find a female voice - prioritize known female names, avoid male names
         germanVoice = germanVoices.find(v => {
@@ -635,10 +553,8 @@ export default function VoiceFSPScreen() {
           const nameLower = v.name?.toLowerCase() || '';
           return !maleNames.some(mn => nameLower.includes(mn));
         }) || germanVoices[0];
-        // Female pitch: natural to slightly higher
-        basePitch = 1.0 * pattern.pitchModifier;
       } else {
-        // Try to find a male voice - prioritize known male names
+        // Try to find a male voice
         germanVoice = germanVoices.find(v => {
           const nameLower = v.name?.toLowerCase() || '';
           return maleNames.some(mn => nameLower.includes(mn)) && !femaleNames.some(fn => nameLower.includes(fn));
@@ -646,26 +562,19 @@ export default function VoiceFSPScreen() {
           const nameLower = v.name?.toLowerCase() || '';
           return !femaleNames.some(fn => nameLower.includes(fn));
         }) || germanVoices[0];
-        // Male pitch: distinctly lower for masculine sound
-        basePitch = 0.75 * pattern.pitchModifier;
       }
-      
-      // Clamp pitch values appropriately for gender
-      const finalPitch = patientGender === 'male' 
-        ? Math.max(0.7, Math.min(0.85, basePitch))  // Male: 0.7-0.85 for deep voice
-        : Math.max(0.95, Math.min(1.1, basePitch)); // Female: 0.95-1.1 for natural female voice
       
       console.log('[VoiceFSP] Available German voices:', germanVoices.map(v => v.name).join(', '));
       console.log('[VoiceFSP] Using voice:', germanVoice?.name || 'default German', 'for', patientGender, 'patient');
-      console.log('[VoiceFSP] Rate:', dynamicRate, 'Pitch:', finalPitch, '(gender:', patientGender, ')');
+      console.log('[VoiceFSP] Rate:', dynamicRate, 'Pitch:', pitch);
       
       await Speech.speak(text, {
         language: 'de-DE',
         voice: germanVoice?.identifier,
-        pitch: finalPitch,
+        pitch: Math.max(0.9, Math.min(1.1, pitch)),
         rate: Math.max(0.85, Math.min(1.0, dynamicRate)),
         onStart: () => {
-          console.log('[VoiceFSP] Speech started with pitch:', finalPitch);
+          console.log('[VoiceFSP] Speech started');
         },
         onDone: () => {
           console.log('[VoiceFSP] Speech completed');
