@@ -1,4 +1,4 @@
-import React, { useState, useRef, useEffect } from 'react';
+import React, { useState } from 'react';
 import {
   View,
   Text,
@@ -6,13 +6,9 @@ import {
   ScrollView,
   TouchableOpacity,
   Alert,
-  Animated,
-  Dimensions,
 } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { useRouter } from 'expo-router';
-import { LinearGradient } from 'expo-linear-gradient';
-import * as Haptics from 'expo-haptics';
 import {
   Crown,
   Check,
@@ -21,11 +17,6 @@ import {
   MessageSquare,
   Star,
   Zap,
-  Shield,
-  Users,
-  BookOpen,
-  ChevronRight,
-  Quote,
 } from 'lucide-react-native';
 import Colors from '@/constants/colors';
 import { useUser } from '@/contexts/UserContext';
@@ -44,16 +35,6 @@ interface Plan {
   features: PlanFeature[];
   popular?: boolean;
 }
-
-interface Testimonial {
-  id: string;
-  name: string;
-  country: string;
-  text: string;
-  rating: number;
-}
-
-const { width } = Dimensions.get('window');
 
 const PLANS: Plan[] = [
   {
@@ -81,8 +62,8 @@ const PLANS: Plan[] = [
       { text: 'Voice-based FSP simulation', included: true },
       { text: 'All sample templates', included: true },
       { text: 'Arztbrief auto-corrector', included: true },
-      { text: 'Bundesland exam protocols', included: true },
       { text: 'Priority support', included: true },
+      { text: 'VIP features', included: false },
     ],
   },
   {
@@ -94,48 +75,11 @@ const PLANS: Plan[] = [
       { text: 'Everything in Pro', included: true },
       { text: 'Unlimited corrections', included: true },
       { text: 'Personal feedback', included: true },
-      { text: 'Early access to features', included: true },
+      { text: 'Early access to new features', included: true },
       { text: '1-on-1 consultation', included: true },
       { text: 'Lifetime updates', included: true },
     ],
   },
-];
-
-const TESTIMONIALS: Testimonial[] = [
-  {
-    id: '1',
-    name: 'Dr. Ahmed K.',
-    country: 'Egypt',
-    text: 'Passed my FSP in Bayern on the first attempt! The voice practice was exactly like the real exam.',
-    rating: 5,
-  },
-  {
-    id: '2',
-    name: 'Dr. Priya S.',
-    country: 'India',
-    text: 'The Arztbrief corrector helped me understand my mistakes. Very useful for exam preparation.',
-    rating: 5,
-  },
-  {
-    id: '3',
-    name: 'Dr. Maria G.',
-    country: 'Romania',
-    text: 'Best investment for my FSP preparation. The document checklist saved me so much time.',
-    rating: 5,
-  },
-  {
-    id: '4',
-    name: 'Dr. Carlos M.',
-    country: 'Brazil',
-    text: 'The 300 Begriffe section is gold! I learned all the vocabulary I needed for the exam.',
-    rating: 5,
-  },
-];
-
-const STATS = [
-  { value: '2,500+', label: 'Doctors Helped' },
-  { value: '89%', label: 'Pass Rate' },
-  { value: '16', label: 'Bundesländer' },
 ];
 
 export default function UpgradeScreen() {
@@ -143,36 +87,6 @@ export default function UpgradeScreen() {
   const { user, upgradeTier } = useUser();
   const [selectedPlan, setSelectedPlan] = useState<UserTier>('pro');
   const [isProcessing, setIsProcessing] = useState(false);
-  const [currentTestimonial, setCurrentTestimonial] = useState(0);
-  
-  const fadeAnim = useRef(new Animated.Value(1)).current;
-  const scaleAnim = useRef(new Animated.Value(0.95)).current;
-
-  useEffect(() => {
-    Animated.spring(scaleAnim, {
-      toValue: 1,
-      tension: 50,
-      friction: 7,
-      useNativeDriver: true,
-    }).start();
-
-    const interval = setInterval(() => {
-      Animated.timing(fadeAnim, {
-        toValue: 0,
-        duration: 300,
-        useNativeDriver: true,
-      }).start(() => {
-        setCurrentTestimonial((prev) => (prev + 1) % TESTIMONIALS.length);
-        Animated.timing(fadeAnim, {
-          toValue: 1,
-          duration: 300,
-          useNativeDriver: true,
-        }).start();
-      });
-    }, 5000);
-
-    return () => clearInterval(interval);
-  }, []);
 
   const handleUpgrade = async () => {
     if (selectedPlan === 'free') {
@@ -180,27 +94,19 @@ export default function UpgradeScreen() {
       return;
     }
 
-    Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Medium);
     setIsProcessing(true);
 
+    // Simulate payment processing
     setTimeout(() => {
       upgradeTier(selectedPlan);
       setIsProcessing(false);
-      Haptics.notificationAsync(Haptics.NotificationFeedbackType.Success);
       Alert.alert(
-        'Upgrade erfolgreich! 🎉',
+        'Upgrade erfolgreich!',
         `Sie haben jetzt Zugriff auf alle ${selectedPlan === 'vip' ? 'VIP' : 'Pro'}-Funktionen.`,
         [{ text: 'OK', onPress: () => router.back() }]
       );
     }, 1500);
   };
-
-  const handleSelectPlan = (planId: UserTier) => {
-    Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light);
-    setSelectedPlan(planId);
-  };
-
-  const testimonial = TESTIMONIALS[currentTestimonial];
 
   return (
     <SafeAreaView style={styles.container} edges={['bottom']}>
@@ -209,43 +115,15 @@ export default function UpgradeScreen() {
         contentContainerStyle={styles.content}
         showsVerticalScrollIndicator={false}
       >
-        <Animated.View style={[styles.header, { transform: [{ scale: scaleAnim }] }]}>
-          <LinearGradient
-            colors={['#2a1f10', '#1a1308']}
-            style={styles.headerGradient}
-          >
-            <View style={styles.iconContainer}>
-              <Crown color={Colors.dark.gold} size={40} />
-            </View>
-            <Text style={styles.title}>Unlock Your Full Potential</Text>
-            <Text style={styles.subtitle}>
-              Join thousands of doctors who passed their FSP with our Pro features
-            </Text>
-          </LinearGradient>
-        </Animated.View>
-
-        <View style={styles.statsRow}>
-          {STATS.map((stat, index) => (
-            <View key={index} style={styles.statItem}>
-              <Text style={styles.statValue}>{stat.value}</Text>
-              <Text style={styles.statLabel}>{stat.label}</Text>
-            </View>
-          ))}
+        <View style={styles.header}>
+          <View style={styles.iconContainer}>
+            <Crown color={Colors.dark.gold} size={40} />
+          </View>
+          <Text style={styles.title}>Upgrade Your Plan</Text>
+          <Text style={styles.subtitle}>
+            Unlock all features to accelerate your FSP preparation
+          </Text>
         </View>
-
-        <Animated.View style={[styles.testimonialCard, { opacity: fadeAnim }]}>
-          <Quote color={Colors.dark.primary} size={24} style={styles.quoteIcon} />
-          <Text style={styles.testimonialText}>"{testimonial.text}"</Text>
-          <View style={styles.testimonialAuthor}>
-            <Text style={styles.testimonialName}>{testimonial.name}</Text>
-            <Text style={styles.testimonialCountry}>{testimonial.country}</Text>
-          </View>
-          <View style={styles.ratingRow}>
-            {[...Array(testimonial.rating)].map((_, i) => (
-              <Star key={i} color={Colors.dark.gold} size={16} fill={Colors.dark.gold} />
-            ))}
-          </View>
-        </Animated.View>
 
         <View style={styles.highlightCard}>
           <Zap color={Colors.dark.primary} size={24} />
@@ -254,25 +132,19 @@ export default function UpgradeScreen() {
             <View style={styles.highlightFeatures}>
               <View style={styles.highlightFeature}>
                 <Mic color={Colors.dark.accent} size={16} />
-                <Text style={styles.highlightText}>Voice FSP with 24+ Cases</Text>
+                <Text style={styles.highlightText}>Voice FSP Simulation</Text>
               </View>
               <View style={styles.highlightFeature}>
                 <FileText color={Colors.dark.accent} size={16} />
-                <Text style={styles.highlightText}>Arztbrief Auto-Corrector</Text>
-              </View>
-              <View style={styles.highlightFeature}>
-                <BookOpen color={Colors.dark.accent} size={16} />
-                <Text style={styles.highlightText}>Bundesland Protocols</Text>
+                <Text style={styles.highlightText}>Arztbrief Corrector</Text>
               </View>
               <View style={styles.highlightFeature}>
                 <MessageSquare color={Colors.dark.accent} size={16} />
-                <Text style={styles.highlightText}>All Sample Templates</Text>
+                <Text style={styles.highlightText}>All Templates</Text>
               </View>
             </View>
           </View>
         </View>
-
-        <Text style={styles.sectionTitle}>Choose Your Plan</Text>
 
         <View style={styles.plansContainer}>
           {PLANS.map((plan) => (
@@ -283,13 +155,13 @@ export default function UpgradeScreen() {
                 selectedPlan === plan.id && styles.planCardSelected,
                 plan.popular && styles.planCardPopular,
               ]}
-              onPress={() => handleSelectPlan(plan.id)}
+              onPress={() => setSelectedPlan(plan.id)}
               activeOpacity={0.8}
             >
               {plan.popular && (
                 <View style={styles.popularBadge}>
                   <Star color={Colors.dark.text} size={12} />
-                  <Text style={styles.popularText}>Best Value</Text>
+                  <Text style={styles.popularText}>Most Popular</Text>
                 </View>
               )}
 
@@ -335,16 +207,6 @@ export default function UpgradeScreen() {
             </TouchableOpacity>
           ))}
         </View>
-
-        <View style={styles.guaranteeCard}>
-          <Shield color={Colors.dark.success} size={24} />
-          <View style={styles.guaranteeContent}>
-            <Text style={styles.guaranteeTitle}>100% Satisfaction Guarantee</Text>
-            <Text style={styles.guaranteeText}>
-              Not happy? Contact us within 7 days for a full refund. No questions asked.
-            </Text>
-          </View>
-        </View>
       </ScrollView>
 
       <View style={styles.footer}>
@@ -356,34 +218,18 @@ export default function UpgradeScreen() {
           onPress={handleUpgrade}
           disabled={isProcessing || user.tier === selectedPlan}
         >
-          <LinearGradient
-            colors={
-              isProcessing || user.tier === selectedPlan
-                ? [Colors.dark.textMuted, Colors.dark.textMuted]
-                : selectedPlan === 'vip'
-                ? [Colors.dark.gold, '#8B7355']
-                : [Colors.dark.primary, Colors.dark.primaryDark]
-            }
-            start={{ x: 0, y: 0 }}
-            end={{ x: 1, y: 0 }}
-            style={styles.upgradeButtonGradient}
-          >
-            <Text style={styles.upgradeButtonText}>
-              {isProcessing
-                ? 'Processing...'
-                : user.tier === selectedPlan
-                ? 'Current Plan'
-                : selectedPlan === 'free'
-                ? 'Continue with Free'
-                : `Upgrade to ${selectedPlan === 'vip' ? 'VIP' : 'Pro'}`}
-            </Text>
-            {!isProcessing && user.tier !== selectedPlan && selectedPlan !== 'free' && (
-              <ChevronRight color={Colors.dark.text} size={20} />
-            )}
-          </LinearGradient>
+          <Text style={styles.upgradeButtonText}>
+            {isProcessing
+              ? 'Processing...'
+              : user.tier === selectedPlan
+              ? 'Current Plan'
+              : selectedPlan === 'free'
+              ? 'Continue with Free'
+              : `Upgrade to ${selectedPlan === 'vip' ? 'VIP' : 'Pro'}`}
+          </Text>
         </TouchableOpacity>
         <Text style={styles.disclaimer}>
-          Cancel anytime • Secure payment via App Store
+          Cancel anytime. Secure payment via App Store.
         </Text>
       </View>
     </SafeAreaView>
@@ -403,96 +249,28 @@ const styles = StyleSheet.create({
     paddingBottom: 20,
   },
   header: {
-    borderRadius: 20,
-    overflow: 'hidden',
-    marginBottom: 20,
-  },
-  headerGradient: {
-    padding: 24,
     alignItems: 'center',
+    marginBottom: 24,
   },
   iconContainer: {
     width: 80,
     height: 80,
-    borderRadius: 24,
-    backgroundColor: 'rgba(197, 165, 114, 0.2)',
+    borderRadius: 40,
+    backgroundColor: 'rgba(197, 165, 114, 0.15)',
     justifyContent: 'center',
     alignItems: 'center',
     marginBottom: 16,
   },
   title: {
-    fontSize: 26,
+    fontSize: 28,
     fontWeight: '700',
     color: Colors.dark.text,
     marginBottom: 8,
-    textAlign: 'center',
   },
   subtitle: {
     fontSize: 15,
     color: Colors.dark.textSecondary,
     textAlign: 'center',
-    lineHeight: 22,
-  },
-  statsRow: {
-    flexDirection: 'row',
-    justifyContent: 'space-around',
-    marginBottom: 20,
-    backgroundColor: Colors.dark.surface,
-    borderRadius: 16,
-    padding: 16,
-    borderWidth: 1,
-    borderColor: Colors.dark.border,
-  },
-  statItem: {
-    alignItems: 'center',
-  },
-  statValue: {
-    fontSize: 24,
-    fontWeight: '700',
-    color: Colors.dark.primary,
-  },
-  statLabel: {
-    fontSize: 12,
-    color: Colors.dark.textMuted,
-    marginTop: 2,
-  },
-  testimonialCard: {
-    backgroundColor: Colors.dark.surface,
-    borderRadius: 16,
-    padding: 20,
-    marginBottom: 20,
-    borderWidth: 1,
-    borderColor: Colors.dark.border,
-  },
-  quoteIcon: {
-    marginBottom: 12,
-    opacity: 0.5,
-  },
-  testimonialText: {
-    fontSize: 15,
-    color: Colors.dark.text,
-    lineHeight: 24,
-    fontStyle: 'italic',
-    marginBottom: 16,
-  },
-  testimonialAuthor: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    gap: 8,
-    marginBottom: 8,
-  },
-  testimonialName: {
-    fontSize: 14,
-    fontWeight: '600',
-    color: Colors.dark.text,
-  },
-  testimonialCountry: {
-    fontSize: 13,
-    color: Colors.dark.textMuted,
-  },
-  ratingRow: {
-    flexDirection: 'row',
-    gap: 4,
   },
   highlightCard: {
     backgroundColor: Colors.dark.surface,
@@ -514,7 +292,7 @@ const styles = StyleSheet.create({
     marginBottom: 12,
   },
   highlightFeatures: {
-    gap: 10,
+    gap: 8,
   },
   highlightFeature: {
     flexDirection: 'row',
@@ -524,12 +302,6 @@ const styles = StyleSheet.create({
   highlightText: {
     fontSize: 14,
     color: Colors.dark.textSecondary,
-  },
-  sectionTitle: {
-    fontSize: 18,
-    fontWeight: '600',
-    color: Colors.dark.text,
-    marginBottom: 16,
   },
   plansContainer: {
     gap: 16,
@@ -626,30 +398,6 @@ const styles = StyleSheet.create({
     fontWeight: '600',
     color: Colors.dark.textSecondary,
   },
-  guaranteeCard: {
-    flexDirection: 'row',
-    backgroundColor: Colors.dark.surface,
-    borderRadius: 16,
-    padding: 16,
-    marginTop: 20,
-    borderWidth: 1,
-    borderColor: Colors.dark.success + '40',
-  },
-  guaranteeContent: {
-    flex: 1,
-    marginLeft: 14,
-  },
-  guaranteeTitle: {
-    fontSize: 15,
-    fontWeight: '600',
-    color: Colors.dark.success,
-    marginBottom: 4,
-  },
-  guaranteeText: {
-    fontSize: 13,
-    color: Colors.dark.textSecondary,
-    lineHeight: 19,
-  },
   footer: {
     padding: 20,
     borderTopWidth: 1,
@@ -657,19 +405,15 @@ const styles = StyleSheet.create({
     backgroundColor: Colors.dark.surface,
   },
   upgradeButton: {
+    backgroundColor: Colors.dark.primary,
+    paddingVertical: 18,
     borderRadius: 16,
-    overflow: 'hidden',
+    alignItems: 'center',
     marginBottom: 12,
   },
   upgradeButtonDisabled: {
+    backgroundColor: Colors.dark.textMuted,
     opacity: 0.6,
-  },
-  upgradeButtonGradient: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    justifyContent: 'center',
-    paddingVertical: 18,
-    gap: 8,
   },
   upgradeButtonText: {
     fontSize: 17,

@@ -1,5 +1,5 @@
 import { Tabs } from "expo-router";
-import { Map, FileText, Mic, User, BookOpen } from "lucide-react-native";
+import { Map, FileText, Mic, Sparkles, User, BookOpen } from "lucide-react-native";
 import React from "react";
 import Colors from "@/constants/colors";
 
@@ -59,7 +59,9 @@ export default function TabLayout() {
       <Tabs.Screen
         name="tools"
         options={{
-          href: null,
+          title: "Tools",
+          tabBarIcon: ({ color, size }) => <Sparkles color={color} size={size} />,
+          headerShown: false,
         }}
       />
       <Tabs.Screen

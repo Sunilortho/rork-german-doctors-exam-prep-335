@@ -6,7 +6,6 @@ import { GestureHandlerRootView } from "react-native-gesture-handler";
 import { StatusBar } from "expo-status-bar";
 import { UserProvider } from "@/contexts/UserContext";
 import { DocumentsProvider } from "@/contexts/DocumentsContext";
-import { GamificationProvider } from "@/contexts/GamificationContext";
 import Colors from "@/constants/colors";
 
 SplashScreen.preventAutoHideAsync();
@@ -78,10 +77,8 @@ export default function RootLayout() {
       <GestureHandlerRootView style={{ flex: 1 }}>
         <UserProvider>
           <DocumentsProvider>
-            <GamificationProvider>
-              <StatusBar style="light" />
-              <RootLayoutNav />
-            </GamificationProvider>
+            <StatusBar style="light" />
+            <RootLayoutNav />
           </DocumentsProvider>
         </UserProvider>
       </GestureHandlerRootView>
