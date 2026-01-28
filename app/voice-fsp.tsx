@@ -855,26 +855,44 @@ export default function VoiceFSPScreen() {
       const voices = await Speech.getAvailableVoicesAsync();
       const germanVoices = voices.filter(v => v.language.startsWith('de'));
       
-      const femaleNames = ['anna', 'petra', 'helena', 'marlene', 'vicki', 'female', 'frau'];
-      const maleNames = ['stefan', 'markus', 'hans', 'male', 'mann', 'herr', 'daniel', 'martin', 'thomas'];
+      const femaleIdentifiers = ['anna', 'petra', 'helena', 'marlene', 'vicki', 'female', 'frau', 'woman', 'girl', 'sabine', 'helga', 'julia', 'maria', 'lisa', 'sarah', 'katja', 'monika', 'claudia', 'stefanie', 'heike', 'fem', 'weiblich'];
+      const maleIdentifiers = ['stefan', 'markus', 'hans', 'male', 'mann', 'herr', 'man', 'boy', 'heinrich', 'thomas', 'daniel', 'martin', 'michael', 'andreas', 'peter', 'klaus', 'jürgen', 'wolfgang', 'dieter', 'masc', 'männlich'];
+      
+      const isFemaleVoice = (voiceName: string): boolean => {
+        const nameLower = voiceName?.toLowerCase() || '';
+        const hasFemaleId = femaleIdentifiers.some(fn => nameLower.includes(fn));
+        const hasMaleId = maleIdentifiers.some(mn => nameLower.includes(mn));
+        return hasFemaleId && !hasMaleId;
+      };
+      
+      const isMaleVoice = (voiceName: string): boolean => {
+        const nameLower = voiceName?.toLowerCase() || '';
+        const hasFemaleId = femaleIdentifiers.some(fn => nameLower.includes(fn));
+        const hasMaleId = maleIdentifiers.some(mn => nameLower.includes(mn));
+        return hasMaleId && !hasFemaleId;
+      };
       
       let germanVoice;
+      let selectedPitch = pitch;
+      
       if (patientGender === 'female') {
-        germanVoice = germanVoices.find(v => {
-          const nameLower = v.name?.toLowerCase() || '';
-          return femaleNames.some(fn => nameLower.includes(fn)) && !maleNames.some(mn => nameLower.includes(mn));
-        }) || germanVoices.find(v => {
-          const nameLower = v.name?.toLowerCase() || '';
-          return !maleNames.some(mn => nameLower.includes(mn));
-        }) || germanVoices[0];
+        germanVoice = germanVoices.find(v => isFemaleVoice(v.name));
+        if (!germanVoice) {
+          germanVoice = germanVoices.find(v => !isMaleVoice(v.name));
+        }
+        if (!germanVoice) {
+          germanVoice = germanVoices[0];
+          selectedPitch = Math.min(1.15, pitch * 1.1);
+        }
       } else {
-        germanVoice = germanVoices.find(v => {
-          const nameLower = v.name?.toLowerCase() || '';
-          return maleNames.some(mn => nameLower.includes(mn)) && !femaleNames.some(fn => nameLower.includes(fn));
-        }) || germanVoices.find(v => {
-          const nameLower = v.name?.toLowerCase() || '';
-          return !femaleNames.some(fn => nameLower.includes(fn));
-        }) || germanVoices[0];
+        germanVoice = germanVoices.find(v => isMaleVoice(v.name));
+        if (!germanVoice) {
+          germanVoice = germanVoices.find(v => !isFemaleVoice(v.name));
+        }
+        if (!germanVoice) {
+          germanVoice = germanVoices[0];
+          selectedPitch = Math.max(0.8, pitch * 0.9);
+        }
       }
       
       console.log('[VoiceFSP] Available German voices:', germanVoices.map(v => v.name).join(', '));
@@ -884,7 +902,7 @@ export default function VoiceFSPScreen() {
       await Speech.speak(text, {
         language: 'de-DE',
         voice: germanVoice?.identifier,
-        pitch: Math.max(0.85, Math.min(1.15, pitch)),
+        pitch: Math.max(0.8, Math.min(1.2, selectedPitch)),
         rate: Math.max(0.85, Math.min(1.0, dynamicRate)),
         onStart: () => {
           console.log('[VoiceFSP] Speech started');
