@@ -888,28 +888,34 @@ export default function VoiceFSPScreen() {
       if (patientGender === 'female') {
         if (femaleVoices.length > 0) {
           germanVoice = femaleVoices[0].voice;
+          console.log('[VoiceFSP] Using identified female voice:', germanVoice.name);
         } else if (unknownVoices.length > 0) {
           germanVoice = unknownVoices[0].voice;
+          console.log('[VoiceFSP] Using unknown voice for female:', germanVoice.name);
         } else if (germanVoices.length > 0) {
           germanVoice = germanVoices[0];
+          console.log('[VoiceFSP] Using fallback German voice for female:', germanVoice.name);
         }
-        selectedPitch = 1.15;
       } else {
         if (maleVoices.length > 0) {
           germanVoice = maleVoices[0].voice;
+          console.log('[VoiceFSP] Using identified male voice:', germanVoice.name);
         } else if (unknownVoices.length > 1) {
           germanVoice = unknownVoices[unknownVoices.length - 1].voice;
+          console.log('[VoiceFSP] Using last unknown voice for male:', germanVoice.name);
         } else if (unknownVoices.length > 0) {
           germanVoice = unknownVoices[0].voice;
+          console.log('[VoiceFSP] Using unknown voice for male:', germanVoice.name);
         } else if (germanVoices.length > 1) {
           germanVoice = germanVoices[germanVoices.length - 1];
+          console.log('[VoiceFSP] Using fallback German voice for male:', germanVoice.name);
         } else if (germanVoices.length > 0) {
           germanVoice = germanVoices[0];
+          console.log('[VoiceFSP] Using only German voice for male:', germanVoice.name);
         }
-        selectedPitch = 0.78;
       }
       
-      const finalPitch = patientGender === 'male' ? 0.78 : 1.15;
+      const finalPitch = patientGender === 'male' ? 0.7 : 1.35;
       
       console.log('[VoiceFSP] Selected voice:', germanVoice?.name || 'default German', 'for', patientGender, 'patient');
       console.log('[VoiceFSP] Final pitch:', finalPitch);
