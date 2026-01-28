@@ -7,13 +7,12 @@ import {
   TouchableOpacity,
   Platform,
   Alert,
-  ActivityIndicator,
-  Switch,
   Animated,
 } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { Audio } from 'expo-av';
 import * as Speech from 'expo-speech';
+import { LinearGradient } from 'expo-linear-gradient';
 import {
   Mic,
   MicOff,
@@ -25,6 +24,14 @@ import {
   Shuffle,
   ChevronDown,
   Lightbulb,
+  Play,
+  Settings,
+  Zap,
+  Heart,
+  Brain,
+  Bone,
+  Activity,
+  Eye,
 } from 'lucide-react-native';
 import Colors from '@/constants/colors';
 import { FSPMessage, FSPSessionSettings } from '@/types';
@@ -41,6 +48,8 @@ import {
   detectEmotionalState,
 } from '@/constants/voiceProfiles';
 
+
+
 interface PatientScenario {
   id: string;
   name: string;
@@ -53,6 +62,7 @@ interface PatientScenario {
 }
 
 const PATIENT_SCENARIOS: PatientScenario[] = [
+  // Female patients
   {
     id: 'headache',
     name: 'Frau Müller',
@@ -173,127 +183,149 @@ const PATIENT_SCENARIOS: PatientScenario[] = [
     history: 'Bekannte Pollenallergie, nimmt Cetirizin bei Bedarf.',
     category: 'Allergologie',
   },
+  // Male patients
   {
-    id: 'stroke',
-    name: 'Frau Schulz',
-    gender: 'female',
-    age: 'elderly',
-    greeting: 'Guten Tag, Schulz mein Name.',
-    complaint: 'Heute Morgen war plötzlich mein rechter Arm so schwach und ich konnte nicht richtig sprechen. Jetzt ist es besser.',
-    history: 'Vorhofflimmern, Bluthochdruck, nimmt ASS und Metoprolol.',
-    category: 'Neurologie',
-  },
-  {
-    id: 'pregnancy',
-    name: 'Frau Neumann',
-    gender: 'female',
-    age: 'young',
-    greeting: 'Guten Tag, ich bin Frau Neumann.',
-    complaint: 'Ich bin schwanger und habe seit ein paar Tagen Blutungen und Unterleibsschmerzen.',
-    history: 'Erste Schwangerschaft, 12. Woche, keine Vorerkrankungen.',
-    category: 'Gynäkologie',
-  },
-  {
-    id: 'liver',
-    name: 'Frau Lange',
-    gender: 'female',
+    id: 'male_chest',
+    name: 'Herr Müller',
+    gender: 'male',
     age: 'middle',
-    greeting: 'Tag, Lange ist mein Name.',
-    complaint: 'Meine Haut und meine Augen sind so gelb geworden. Mir ist auch oft übel.',
-    history: 'Regelmäßiger Alkoholkonsum seit 20 Jahren, bekannte Fettleber.',
-    category: 'Gastroenterologie',
-  },
-  {
-    id: 'hypertension',
-    name: 'Frau Peters',
-    gender: 'female',
-    age: 'elderly',
-    greeting: 'Grüß Gott, Peters mein Name.',
-    complaint: 'Ich habe starke Kopfschmerzen im Hinterkopf und mir ist schwindelig. Mein Blutdruck war heute Morgen 190 zu 110.',
-    history: 'Bekannte Hypertonie, nimmt Amlodipin, hat letzte Woche die Tabletten vergessen.',
+    greeting: 'Guten Tag, Herr Doktor. Müller ist mein Name.',
+    complaint: 'Ich habe seit gestern Abend starke Brustschmerzen. Die strahlen auch in den linken Arm aus.',
+    history: 'Raucher seit 25 Jahren, Bluthochdruck, erhöhte Cholesterinwerte, nimmt Simvastatin.',
     category: 'Kardiologie',
   },
   {
-    id: 'anemia',
-    name: 'Frau Koch',
-    gender: 'female',
-    age: 'young',
-    greeting: 'Hallo, Koch ist mein Name.',
-    complaint: 'Ich bin ständig müde und erschöpft. Mir wird auch oft schwarz vor Augen wenn ich aufstehe.',
-    history: 'Vegetarierin seit 5 Jahren, starke Regelblutungen.',
-    category: 'Hämatologie',
+    id: 'male_back',
+    name: 'Herr Schmidt',
+    gender: 'male',
+    age: 'elderly',
+    greeting: 'Grüß Gott, Schmidt mein Name.',
+    complaint: 'Mein Rücken macht mir große Probleme. Die Schmerzen ziehen bis ins Bein runter.',
+    history: 'Bandscheibenvorfall vor 10 Jahren, Arthrose, nimmt Ibuprofen bei Bedarf.',
+    category: 'Orthopädie',
   },
   {
-    id: 'asthma',
-    name: 'Frau Wolf',
-    gender: 'female',
-    age: 'young',
-    greeting: 'Guten Tag, Wolf mein Name.',
-    complaint: 'Ich bekomme nachts kaum Luft und muss ständig husten. Das pfeift auch so komisch.',
-    history: 'Als Kind Asthma, seit Jahren keine Beschwerden, neu eingezogen in Altbauwohnung.',
+    id: 'male_prostate',
+    name: 'Herr Weber',
+    gender: 'male',
+    age: 'elderly',
+    greeting: 'Tag, Herr Doktor. Weber ist mein Name.',
+    complaint: 'Ich muss nachts ständig auf Toilette und der Strahl ist so schwach geworden.',
+    history: 'Keine Vorerkrankungen, Vater hatte Prostatakrebs.',
+    category: 'Urologie',
+  },
+  {
+    id: 'male_respiratory',
+    name: 'Herr Fischer',
+    gender: 'male',
+    age: 'middle',
+    greeting: 'Guten Tag, Fischer mein Name.',
+    complaint: 'Ich habe einen hartnäckigen Husten seit drei Wochen. Morgens ist er am schlimmsten mit viel Auswurf.',
+    history: 'Raucher seit 30 Jahren, keine anderen Vorerkrankungen.',
     category: 'Pneumologie',
   },
   {
-    id: 'kidney',
-    name: 'Frau Schäfer',
-    gender: 'female',
-    age: 'elderly',
-    greeting: 'Guten Tag, Schäfer ist mein Name.',
-    complaint: 'Meine Beine sind so geschwollen und ich muss kaum noch Wasser lassen. Mir ist auch ständig übel.',
-    history: 'Diabetes seit 25 Jahren, bekannte diabetische Nephropathie Stadium 3.',
-    category: 'Nephrologie',
-  },
-  {
-    id: 'skin',
-    name: 'Frau Meier',
-    gender: 'female',
+    id: 'male_diabetes',
+    name: 'Herr Wagner',
+    gender: 'male',
     age: 'middle',
-    greeting: 'Hallo, Meier mein Name.',
-    complaint: 'Ich habe so rote, schuppige Stellen auf der Haut, besonders an den Ellbogen und Knien. Das juckt furchtbar.',
-    history: 'Vater hatte Psoriasis, aktuell viel Stress bei der Arbeit.',
-    category: 'Dermatologie',
+    greeting: 'Hallo, Wagner ist mein Name.',
+    complaint: 'Ich bin ständig müde und muss viel trinken. Außerdem habe ich in letzter Zeit stark abgenommen.',
+    history: 'Übergewicht, Vater und Großvater hatten Diabetes.',
+    category: 'Innere Medizin',
   },
   {
-    id: 'vertigo',
-    name: 'Frau Huber',
-    gender: 'female',
-    age: 'elderly',
-    greeting: 'Grüß Gott, Huber ist mein Name.',
-    complaint: 'Mir dreht sich alles, besonders wenn ich mich im Bett umdrehe. Mir ist auch übel davon.',
-    history: 'Keine Vorerkrankungen, nimmt keine Medikamente.',
-    category: 'HNO',
-  },
-  {
-    id: 'dvt',
-    name: 'Frau Vogel',
-    gender: 'female',
-    age: 'middle',
-    greeting: 'Tag, Vogel mein Name.',
-    complaint: 'Mein linkes Bein ist seit zwei Tagen dick und rot. Es tut weh, besonders in der Wade.',
-    history: 'Vor 3 Wochen Langstreckenflug, nimmt die Pille, raucht 10 Zigaretten täglich.',
-    category: 'Angiologie',
-  },
-  {
-    id: 'migraine',
-    name: 'Frau Beck',
-    gender: 'female',
+    id: 'male_headache',
+    name: 'Herr Hoffmann',
+    gender: 'male',
     age: 'young',
-    greeting: 'Hallo, Beck ist mein Name.',
-    complaint: 'Ich habe wieder diese pochenden Kopfschmerzen, nur auf einer Seite. Mir ist übel und Licht tut weh.',
-    history: 'Bekannte Migräne seit der Pubertät, nimmt Triptane bei Bedarf.',
+    greeting: 'Hallo, Hoffmann mein Name.',
+    complaint: 'Ich habe seit einer Woche jeden Tag Kopfschmerzen. Besonders hinter den Augen.',
+    history: 'Viel Bildschirmarbeit, trägt Brille, keine Vorerkrankungen.',
     category: 'Neurologie',
   },
   {
-    id: 'fracture',
-    name: 'Frau Zimmermann',
-    gender: 'female',
-    age: 'elderly',
-    greeting: 'Guten Tag, Zimmermann mein Name.',
-    complaint: 'Ich bin gestürzt und kann jetzt nicht mehr auf dem linken Bein stehen. Die Hüfte tut so weh.',
-    history: 'Osteoporose, nimmt Calcium und Vitamin D, keine Bisphosphonate.',
+    id: 'male_gastro',
+    name: 'Herr Bauer',
+    gender: 'male',
+    age: 'middle',
+    greeting: 'Tag, Bauer ist mein Name.',
+    complaint: 'Ich habe Oberbauchschmerzen und mir ist oft übel. Besonders nach fettigem Essen.',
+    history: 'Gallensteine in der Familie, trinkt gelegentlich Alkohol, Übergewicht.',
+    category: 'Gastroenterologie',
+  },
+  {
+    id: 'male_injury',
+    name: 'Herr Klein',
+    gender: 'male',
+    age: 'young',
+    greeting: 'Hallo, ich bin Thomas Klein.',
+    complaint: 'Ich bin beim Fußball umgeknickt. Der Knöchel ist stark geschwollen und ich kann kaum auftreten.',
+    history: 'Sportler, früher schon mal denselben Knöchel verstaucht.',
     category: 'Unfallchirurgie',
   },
+  {
+    id: 'male_skin',
+    name: 'Herr Schneider',
+    gender: 'male',
+    age: 'elderly',
+    greeting: 'Guten Tag, Schneider mein Name.',
+    complaint: 'Ich habe so einen Fleck auf der Haut, der immer größer wird und manchmal blutet.',
+    history: 'Früher viel in der Sonne gearbeitet, helle Haut.',
+    category: 'Dermatologie',
+  },
+  {
+    id: 'male_anxiety',
+    name: 'Herr Braun',
+    gender: 'male',
+    age: 'young',
+    greeting: 'Hallo, Braun mein Name.',
+    complaint: 'Ich habe plötzlich Herzrasen und Atemnot, obwohl ich nichts mache. Das macht mir Angst.',
+    history: 'Viel Stress bei der Arbeit, trinkt viel Kaffee, keine Vorerkrankungen.',
+    category: 'Psychiatrie',
+  },
+  {
+    id: 'male_liver',
+    name: 'Herr Krause',
+    gender: 'male',
+    age: 'middle',
+    greeting: 'Tag, Krause ist mein Name.',
+    complaint: 'Mir ist seit Tagen übel und ich fühle mich so schlapp. Meine Frau sagt, ich sehe gelb aus.',
+    history: 'Früher viel Alkohol getrunken, erhöhte Leberwerte bekannt.',
+    category: 'Gastroenterologie',
+  },
+  {
+    id: 'male_heart_failure',
+    name: 'Herr Richter',
+    gender: 'male',
+    age: 'elderly',
+    greeting: 'Grüß Gott, Richter mein Name.',
+    complaint: 'Ich bekomme keine Luft mehr beim Treppensteigen und muss nachts mit erhöhtem Kopf schlafen.',
+    history: 'Herzinfarkt vor 5 Jahren, Stents, nimmt ASS, Betablocker und ACE-Hemmer.',
+    category: 'Kardiologie',
+  },
 ];
+
+const CATEGORY_ICONS: Record<string, any> = {
+  'Neurologie': Brain,
+  'Kardiologie': Heart,
+  'Chirurgie': Activity,
+  'Orthopädie': Bone,
+  'Unfallchirurgie': Bone,
+  'Urologie': Activity,
+  'Pneumologie': Activity,
+  'Innere Medizin': Activity,
+  'Gastroenterologie': Activity,
+  'Endokrinologie': Activity,
+  'Psychiatrie': Brain,
+  'Allergologie': Eye,
+  'Dermatologie': Eye,
+  'Gynäkologie': Heart,
+  'Nephrologie': Activity,
+  'HNO': Activity,
+  'Angiologie': Heart,
+  'Hämatologie': Activity,
+};
 
 const createPatientPrompt = (scenario: typeof PATIENT_SCENARIOS[0], personality: string, emotionalState: EmotionalState) => {
   const personalityTraits = {
@@ -310,6 +342,8 @@ const createPatientPrompt = (scenario: typeof PATIENT_SCENARIOS[0], personality:
     frustrated: 'Zeige leichte Frustration.',
     relieved: 'Zeige Erleichterung.',
   };
+
+  
 
   return `Du bist ${scenario.name}, ein Patient bei der Fachsprachprüfung in Deutschland.
 
@@ -358,6 +392,8 @@ export default function VoiceFSPScreen() {
   const [showCaseSelector, setShowCaseSelector] = useState(false);
   const [pronunciationHint, setPronunciationHint] = useState<PronunciationHint | null>(null);
   const [hintAnimation] = useState(new Animated.Value(0));
+  const [pulseAnimation] = useState(new Animated.Value(1));
+  const [genderFilter, setGenderFilter] = useState<'all' | 'female' | 'male'>('all');
   
   const recordingRef = useRef<Audio.Recording | null>(null);
   const scrollViewRef = useRef<ScrollView>(null);
@@ -371,6 +407,27 @@ export default function VoiceFSPScreen() {
       Speech.stop();
     };
   }, []);
+
+  useEffect(() => {
+    if (isRecording) {
+      Animated.loop(
+        Animated.sequence([
+          Animated.timing(pulseAnimation, {
+            toValue: 1.15,
+            duration: 600,
+            useNativeDriver: true,
+          }),
+          Animated.timing(pulseAnimation, {
+            toValue: 1,
+            duration: 600,
+            useNativeDriver: true,
+          }),
+        ])
+      ).start();
+    } else {
+      pulseAnimation.setValue(1);
+    }
+  }, [isRecording, pulseAnimation]);
 
   const checkPermissions = async () => {
     try {
@@ -415,7 +472,6 @@ export default function VoiceFSPScreen() {
   const analyzeForPronunciationHints = useCallback((text: string): PronunciationHint | null => {
     const lowerText = text.toLowerCase();
     
-    // Check for unclear/incomplete sentences
     if (text.length < 10 && !text.includes('?')) {
       return {
         text: text,
@@ -424,7 +480,6 @@ export default function VoiceFSPScreen() {
       };
     }
     
-    // Check for missing medical terminology structure
     if (lowerText.includes('weh') && !lowerText.includes('schmerz')) {
       return {
         text: '"weh tun"',
@@ -433,7 +488,6 @@ export default function VoiceFSPScreen() {
       };
     }
     
-    // Check for informal language
     if (lowerText.includes('kriegen') || lowerText.includes('gekriegt')) {
       return {
         text: '"kriegen"',
@@ -442,7 +496,6 @@ export default function VoiceFSPScreen() {
       };
     }
     
-    // Check for missing question intonation markers
     if ((lowerText.includes('können sie') || lowerText.includes('haben sie')) && !text.includes('?')) {
       return {
         text: text,
@@ -451,7 +504,6 @@ export default function VoiceFSPScreen() {
       };
     }
     
-    // Check for anamnesis structure
     const anamnesisKeywords = ['seit wann', 'wo genau', 'wie stark', 'ausstrahlung', 'begleitsymptome'];
     const hasAnamnesisStructure = anamnesisKeywords.some(kw => lowerText.includes(kw));
     if (messages.length > 2 && messages.length < 6 && !hasAnamnesisStructure) {
@@ -465,20 +517,25 @@ export default function VoiceFSPScreen() {
     return null;
   }, [messages]);
 
+  const getFilteredScenarios = () => {
+    if (genderFilter === 'all') return PATIENT_SCENARIOS;
+    return PATIENT_SCENARIOS.filter(s => s.gender === genderFilter);
+  };
+
   const startSession = () => {
     setShowSettings(false);
     setPronunciationHint(null);
     
-    // Select scenario based on mode
+    const filteredScenarios = getFilteredScenarios();
     let scenario: PatientScenario;
+    
     if (randomMode || !selectedScenarioId) {
-      scenario = PATIENT_SCENARIOS[Math.floor(Math.random() * PATIENT_SCENARIOS.length)];
+      scenario = filteredScenarios[Math.floor(Math.random() * filteredScenarios.length)];
     } else {
-      scenario = PATIENT_SCENARIOS.find(s => s.id === selectedScenarioId) || PATIENT_SCENARIOS[0];
+      scenario = PATIENT_SCENARIOS.find(s => s.id === selectedScenarioId) || filteredScenarios[0];
     }
     
-    // Select voice based on scenario age for natural matching
-    const voice = getVoiceByCharacteristics('female', scenario.age);
+    const voice = getVoiceByCharacteristics(scenario.gender, scenario.age);
     
     setCurrentScenario(scenario);
     setCurrentVoice(voice);
@@ -508,12 +565,10 @@ export default function VoiceFSPScreen() {
     try {
       setIsSpeaking(true);
       
-      // Prepare text for natural TTS with proper pauses and intonation
       const ttsText = prepareTextForTTS(text, emotionalState);
       
       console.log(`[VoiceFSP] Speaking: "${ttsText.substring(0, 50)}..." with ${voice.name} (${emotionalState}) - ${patientGender} patient`);
       
-      // Use expo-speech with natural German voice settings, matching patient gender
       await speakWithExpoSpeech(ttsText, voice, emotionalState, patientGender);
     } catch (error) {
       console.log('[VoiceFSP] Speech error:', error);
@@ -528,24 +583,20 @@ export default function VoiceFSPScreen() {
     patientGender: 'female' | 'male' = 'female'
   ) => {
     try {
-      // Stop any ongoing speech first
       await Speech.stop();
       
       const pattern = EMOTIONAL_SPEECH_PATTERNS[emotionalState];
       const dynamicRate = calculateDynamicSpeed(voice.rate, emotionalState);
       const pitch = voice.pitch * pattern.pitchModifier;
       
-      // Get available voices and find appropriate German voice based on patient gender
       const voices = await Speech.getAvailableVoicesAsync();
       const germanVoices = voices.filter(v => v.language.startsWith('de'));
       
-      // Common German voice name patterns
       const femaleNames = ['anna', 'petra', 'helena', 'marlene', 'vicki', 'female', 'frau'];
-      const maleNames = ['stefan', 'markus', 'hans', 'male', 'mann', 'herr'];
+      const maleNames = ['stefan', 'markus', 'hans', 'male', 'mann', 'herr', 'daniel', 'martin', 'thomas'];
       
       let germanVoice;
       if (patientGender === 'female') {
-        // Try to find a female voice - prioritize known female names, avoid male names
         germanVoice = germanVoices.find(v => {
           const nameLower = v.name?.toLowerCase() || '';
           return femaleNames.some(fn => nameLower.includes(fn)) && !maleNames.some(mn => nameLower.includes(mn));
@@ -554,7 +605,6 @@ export default function VoiceFSPScreen() {
           return !maleNames.some(mn => nameLower.includes(mn));
         }) || germanVoices[0];
       } else {
-        // Try to find a male voice
         germanVoice = germanVoices.find(v => {
           const nameLower = v.name?.toLowerCase() || '';
           return maleNames.some(mn => nameLower.includes(mn)) && !femaleNames.some(fn => nameLower.includes(fn));
@@ -571,7 +621,7 @@ export default function VoiceFSPScreen() {
       await Speech.speak(text, {
         language: 'de-DE',
         voice: germanVoice?.identifier,
-        pitch: Math.max(0.9, Math.min(1.1, pitch)),
+        pitch: Math.max(0.85, Math.min(1.15, pitch)),
         rate: Math.max(0.85, Math.min(1.0, dynamicRate)),
         onStart: () => {
           console.log('[VoiceFSP] Speech started');
@@ -717,7 +767,6 @@ export default function VoiceFSPScreen() {
   };
 
   const handleDoctorMessage = async (text: string) => {
-    // Check for pronunciation/clarity hints
     const hint = analyzeForPronunciationHints(text);
     if (hint) {
       showHint(hint);
@@ -741,7 +790,6 @@ export default function VoiceFSPScreen() {
 
   const generatePatientResponse = async (doctorInput: string) => {
     try {
-      // Detect emotional state from context
       const newEmotionalState = detectEmotionalState(doctorInput, settings.personality);
       setCurrentEmotionalState(newEmotionalState);
       
@@ -763,7 +811,6 @@ export default function VoiceFSPScreen() {
 
       let patientResponse = response || 'Entschuldigung, können Sie das bitte wiederholen?';
       
-      // Process for natural speech
       patientResponse = processTextForNaturalSpeech(patientResponse, newEmotionalState, settings.personality);
 
       const patientMessage: FSPMessage = {
@@ -827,121 +874,205 @@ export default function VoiceFSPScreen() {
     }
   };
 
+  const getCategoryIcon = (category: string) => {
+    const IconComponent = CATEGORY_ICONS[category] || Activity;
+    return IconComponent;
+  };
+
   if (showSettings) {
     return (
       <SafeAreaView style={styles.container} edges={['bottom']}>
-        <ScrollView contentContainerStyle={styles.settingsContent}>
-          <Text style={styles.settingsTitle}>FSP Simulation Setup</Text>
-          <Text style={styles.settingsSubtitle}>
-            Configure your practice session
-          </Text>
-
-          <View style={styles.voiceInfoCard}>
-            <View style={styles.voiceInfoHeader}>
-              <Users color={Colors.dark.primary} size={20} />
-              <Text style={styles.voiceInfoTitle}>Natural Patient Voices</Text>
+        <ScrollView 
+          contentContainerStyle={styles.settingsContent}
+          showsVerticalScrollIndicator={false}
+        >
+          <View style={styles.headerSection}>
+            <View style={styles.iconContainer}>
+              <LinearGradient
+                colors={[Colors.dark.primary, Colors.dark.primaryDark]}
+                style={styles.iconGradient}
+              >
+                <Mic color="#fff" size={32} />
+              </LinearGradient>
             </View>
-            <Text style={styles.voiceInfoText}>
-              High-quality voices with natural German intonation, 
-              emotional expressions, and real-time pronunciation feedback.
+            <Text style={styles.settingsTitle}>FSP Voice Simulation</Text>
+            <Text style={styles.settingsSubtitle}>
+              Practice your medical German with AI-powered patient conversations
             </Text>
           </View>
 
-          <View style={styles.settingSection}>
-            <Text style={styles.settingLabel}>Case Selection</Text>
-            <View style={styles.caseModeRow}>
-              <View style={styles.caseModeOption}>
-                <Shuffle color={randomMode ? Colors.dark.primary : Colors.dark.textMuted} size={18} />
-                <Text style={[styles.caseModeText, randomMode && styles.caseModeTextActive]}>Random</Text>
+          <View style={styles.featureCards}>
+            <View style={styles.featureCard}>
+              <View style={[styles.featureIcon, { backgroundColor: 'rgba(0, 180, 216, 0.15)' }]}>
+                <Users color={Colors.dark.primary} size={18} />
               </View>
-              <Switch
-                value={!randomMode}
-                onValueChange={(value) => setRandomMode(!value)}
-                trackColor={{ false: Colors.dark.surfaceLight, true: Colors.dark.primary }}
-                thumbColor={Colors.dark.text}
-              />
-              <Text style={[styles.caseModeText, !randomMode && styles.caseModeTextActive]}>Choose Case</Text>
+              <View style={styles.featureTextContainer}>
+                <Text style={styles.featureTitle}>Natural Voices</Text>
+                <Text style={styles.featureDesc}>Male & female patients</Text>
+              </View>
+            </View>
+            <View style={styles.featureCard}>
+              <View style={[styles.featureIcon, { backgroundColor: 'rgba(0, 212, 170, 0.15)' }]}>
+                <Zap color={Colors.dark.accent} size={18} />
+              </View>
+              <View style={styles.featureTextContainer}>
+                <Text style={styles.featureTitle}>Real-time Feedback</Text>
+                <Text style={styles.featureDesc}>Pronunciation hints</Text>
+              </View>
+            </View>
+          </View>
+
+          <View style={styles.settingCard}>
+            <View style={styles.settingHeader}>
+              <Settings color={Colors.dark.textSecondary} size={18} />
+              <Text style={styles.settingCardTitle}>Session Settings</Text>
+            </View>
+
+            <View style={styles.settingRow}>
+              <Text style={styles.settingLabel}>Case Selection</Text>
+              <View style={styles.toggleContainer}>
+                <TouchableOpacity
+                  style={[styles.toggleOption, randomMode && styles.toggleOptionActive]}
+                  onPress={() => setRandomMode(true)}
+                >
+                  <Shuffle color={randomMode ? '#fff' : Colors.dark.textMuted} size={16} />
+                  <Text style={[styles.toggleText, randomMode && styles.toggleTextActive]}>Random</Text>
+                </TouchableOpacity>
+                <TouchableOpacity
+                  style={[styles.toggleOption, !randomMode && styles.toggleOptionActive]}
+                  onPress={() => setRandomMode(false)}
+                >
+                  <Text style={[styles.toggleText, !randomMode && styles.toggleTextActive]}>Choose</Text>
+                </TouchableOpacity>
+              </View>
             </View>
 
             {!randomMode && (
-              <TouchableOpacity
-                style={styles.caseSelectorButton}
-                onPress={() => setShowCaseSelector(!showCaseSelector)}
-              >
-                <Text style={styles.caseSelectorButtonText}>
-                  {selectedScenarioId 
-                    ? PATIENT_SCENARIOS.find(s => s.id === selectedScenarioId)?.name || 'Select Case'
-                    : 'Select Case'}
-                </Text>
-                <ChevronDown color={Colors.dark.textSecondary} size={20} />
-              </TouchableOpacity>
+              <>
+                <View style={styles.genderFilterRow}>
+                  <Text style={styles.filterLabel}>Patient Gender:</Text>
+                  <View style={styles.genderFilters}>
+                    {(['all', 'female', 'male'] as const).map((g) => (
+                      <TouchableOpacity
+                        key={g}
+                        style={[styles.genderChip, genderFilter === g && styles.genderChipActive]}
+                        onPress={() => {
+                          setGenderFilter(g);
+                          setSelectedScenarioId(null);
+                        }}
+                      >
+                        <Text style={[styles.genderChipText, genderFilter === g && styles.genderChipTextActive]}>
+                          {g === 'all' ? 'All' : g === 'female' ? 'Female' : 'Male'}
+                        </Text>
+                      </TouchableOpacity>
+                    ))}
+                  </View>
+                </View>
+
+                <TouchableOpacity
+                  style={styles.caseSelectorButton}
+                  onPress={() => setShowCaseSelector(!showCaseSelector)}
+                >
+                  <View style={styles.caseSelectorLeft}>
+                    <User color={Colors.dark.textSecondary} size={18} />
+                    <Text style={styles.caseSelectorButtonText}>
+                      {selectedScenarioId 
+                        ? PATIENT_SCENARIOS.find(s => s.id === selectedScenarioId)?.name || 'Select Case'
+                        : 'Select a Patient Case'}
+                    </Text>
+                  </View>
+                  <ChevronDown 
+                    color={Colors.dark.textSecondary} 
+                    size={20} 
+                    style={{ transform: [{ rotate: showCaseSelector ? '180deg' : '0deg' }] }}
+                  />
+                </TouchableOpacity>
+              </>
             )}
 
             {!randomMode && showCaseSelector && (
-              <View style={styles.caseList}>
-                {PATIENT_SCENARIOS.map((scenario) => (
-                  <TouchableOpacity
-                    key={scenario.id}
-                    style={[
-                      styles.caseItem,
-                      selectedScenarioId === scenario.id && styles.caseItemSelected,
-                    ]}
-                    onPress={() => {
-                      setSelectedScenarioId(scenario.id);
-                      setShowCaseSelector(false);
-                    }}
-                  >
-                    <View style={styles.caseItemContent}>
-                      <Text style={styles.caseItemName}>{scenario.name}</Text>
-                      <Text style={styles.caseItemCategory}>{scenario.category}</Text>
-                    </View>
-                    <Text style={styles.caseItemComplaint} numberOfLines={1}>
-                      {scenario.complaint.substring(0, 40)}...
-                    </Text>
-                  </TouchableOpacity>
-                ))}
-              </View>
+              <ScrollView style={styles.caseList} nestedScrollEnabled>
+                {getFilteredScenarios().map((scenario) => {
+                  const IconComponent = getCategoryIcon(scenario.category);
+                  return (
+                    <TouchableOpacity
+                      key={scenario.id}
+                      style={[
+                        styles.caseItem,
+                        selectedScenarioId === scenario.id && styles.caseItemSelected,
+                      ]}
+                      onPress={() => {
+                        setSelectedScenarioId(scenario.id);
+                        setShowCaseSelector(false);
+                      }}
+                    >
+                      <View style={styles.caseItemLeft}>
+                        <View style={[
+                          styles.caseAvatar,
+                          scenario.gender === 'male' ? styles.caseAvatarMale : styles.caseAvatarFemale
+                        ]}>
+                          <User color="#fff" size={16} />
+                        </View>
+                        <View style={styles.caseItemContent}>
+                          <Text style={styles.caseItemName}>{scenario.name}</Text>
+                          <Text style={styles.caseItemComplaint} numberOfLines={1}>
+                            {scenario.complaint.substring(0, 45)}...
+                          </Text>
+                        </View>
+                      </View>
+                      <View style={styles.caseItemRight}>
+                        <View style={styles.categoryBadge}>
+                          <IconComponent color={Colors.dark.primary} size={12} />
+                          <Text style={styles.caseItemCategory}>{scenario.category}</Text>
+                        </View>
+                      </View>
+                    </TouchableOpacity>
+                  );
+                })}
+              </ScrollView>
             )}
-          </View>
 
-          <View style={styles.settingSection}>
-            <Text style={styles.settingLabel}>Patient Personality</Text>
-            <View style={styles.optionRow}>
+            <View style={styles.divider} />
+
+            <View style={styles.settingRow}>
+              <Text style={styles.settingLabel}>Patient Personality</Text>
+            </View>
+            <View style={styles.personalityRow}>
               {(['anxious', 'talkative', 'brief'] as const).map((p) => (
                 <TouchableOpacity
                   key={p}
                   style={[
-                    styles.optionButton,
-                    settings.personality === p && styles.optionButtonActive,
+                    styles.personalityButton,
+                    settings.personality === p && styles.personalityButtonActive,
                   ]}
                   onPress={() => setSettings({ ...settings, personality: p })}
                 >
                   <Text style={[
-                    styles.optionText,
-                    settings.personality === p && styles.optionTextActive,
+                    styles.personalityText,
+                    settings.personality === p && styles.personalityTextActive,
                   ]}>
                     {p === 'anxious' ? 'Ängstlich' : p === 'talkative' ? 'Gesprächig' : 'Kurz'}
                   </Text>
                 </TouchableOpacity>
               ))}
             </View>
-          </View>
 
-          <View style={styles.settingSection}>
-            <Text style={styles.settingLabel}>Difficulty Level</Text>
-            <View style={styles.optionRow}>
+            <View style={styles.settingRow}>
+              <Text style={styles.settingLabel}>Difficulty Level</Text>
+            </View>
+            <View style={styles.difficultyRow}>
               {(['A2', 'B2', 'C1'] as const).map((d) => (
                 <TouchableOpacity
                   key={d}
                   style={[
-                    styles.optionButton,
-                    settings.difficulty === d && styles.optionButtonActive,
+                    styles.difficultyButton,
+                    settings.difficulty === d && styles.difficultyButtonActive,
                   ]}
                   onPress={() => setSettings({ ...settings, difficulty: d })}
                 >
                   <Text style={[
-                    styles.optionText,
-                    settings.difficulty === d && styles.optionTextActive,
+                    styles.difficultyText,
+                    settings.difficulty === d && styles.difficultyTextActive,
                   ]}>
                     {d}
                   </Text>
@@ -950,10 +1081,25 @@ export default function VoiceFSPScreen() {
             </View>
           </View>
 
-          <TouchableOpacity style={styles.startButton} onPress={startSession}>
-            <Mic color={Colors.dark.text} size={24} />
-            <Text style={styles.startButtonText}>Start Voice Simulation</Text>
+          <TouchableOpacity 
+            style={styles.startButton} 
+            onPress={startSession}
+            activeOpacity={0.8}
+          >
+            <LinearGradient
+              colors={[Colors.dark.primary, Colors.dark.primaryDark]}
+              start={{ x: 0, y: 0 }}
+              end={{ x: 1, y: 0 }}
+              style={styles.startButtonGradient}
+            >
+              <Play color="#fff" size={22} fill="#fff" />
+              <Text style={styles.startButtonText}>Start Simulation</Text>
+            </LinearGradient>
           </TouchableOpacity>
+
+          <Text style={styles.tipText}>
+            Tip: Use a quiet environment for best speech recognition results
+          </Text>
         </ScrollView>
       </SafeAreaView>
     );
@@ -965,9 +1111,17 @@ export default function VoiceFSPScreen() {
         <TouchableOpacity style={styles.headerButton} onPress={resetSession}>
           <RefreshCw color={Colors.dark.textSecondary} size={20} />
         </TouchableOpacity>
-        <Text style={styles.sessionTitle}>FSP Simulation</Text>
-        <TouchableOpacity style={styles.headerButton} onPress={replayLastPatient}>
-          <Volume2 color={isSpeaking ? Colors.dark.primary : Colors.dark.textSecondary} size={20} />
+        <View style={styles.sessionInfo}>
+          <Text style={styles.sessionTitle}>{currentScenario.name}</Text>
+          <View style={styles.sessionBadge}>
+            <Text style={styles.sessionBadgeText}>{currentScenario.category}</Text>
+          </View>
+        </View>
+        <TouchableOpacity 
+          style={[styles.headerButton, isSpeaking && styles.headerButtonActive]} 
+          onPress={replayLastPatient}
+        >
+          <Volume2 color={isSpeaking ? '#fff' : Colors.dark.textSecondary} size={20} />
         </TouchableOpacity>
       </View>
 
@@ -986,8 +1140,11 @@ export default function VoiceFSPScreen() {
             ]}
           >
             {message.role === 'patient' && (
-              <View style={styles.avatarPatient}>
-                <User color={Colors.dark.text} size={18} />
+              <View style={[
+                styles.avatarPatient,
+                currentScenario.gender === 'male' ? styles.avatarMale : styles.avatarFemale
+              ]}>
+                <User color="#fff" size={16} />
               </View>
             )}
             <View
@@ -999,13 +1156,13 @@ export default function VoiceFSPScreen() {
               ]}
             >
               <Text style={styles.roleLabel}>
-                {message.role === 'arzt' ? 'Arzt' : 'Patient'}
+                {message.role === 'arzt' ? 'Sie (Arzt)' : currentScenario.name}
               </Text>
               <Text style={styles.messageText}>{message.content}</Text>
             </View>
             {message.role === 'arzt' && (
               <View style={styles.avatarArzt}>
-                <Stethoscope color={Colors.dark.text} size={18} />
+                <Stethoscope color="#fff" size={16} />
               </View>
             )}
           </View>
@@ -1013,8 +1170,12 @@ export default function VoiceFSPScreen() {
 
         {isProcessing && (
           <View style={styles.processingContainer}>
-            <ActivityIndicator color={Colors.dark.primary} />
-            <Text style={styles.processingText}>Verarbeitung...</Text>
+            <View style={styles.processingDots}>
+              <Animated.View style={[styles.dot, styles.dot1]} />
+              <Animated.View style={[styles.dot, styles.dot2]} />
+              <Animated.View style={[styles.dot, styles.dot3]} />
+            </View>
+            <Text style={styles.processingText}>Patient denkt nach...</Text>
           </View>
         )}
       </ScrollView>
@@ -1042,31 +1203,42 @@ export default function VoiceFSPScreen() {
         </Animated.View>
       )}
 
-      <View style={styles.hintContainer}>
-        <Text style={styles.hintText}>
-          🎤 Sprechen Sie wie in der echten Prüfung. KI gibt Echtzeit-Feedback.
-        </Text>
-      </View>
-
       <View style={styles.controlsContainer}>
-        <TouchableOpacity
-          style={[
-            styles.micButton,
-            isRecording && styles.micButtonRecording,
-            (isProcessing || !hasPermission) && styles.micButtonDisabled,
-          ]}
-          onPress={handleMicPress}
-          disabled={isProcessing || !hasPermission}
-        >
-          {isRecording ? (
-            <MicOff color={Colors.dark.text} size={32} />
-          ) : (
-            <Mic color={Colors.dark.text} size={32} />
-          )}
-        </TouchableOpacity>
-        <Text style={styles.micLabel}>
-          {isRecording ? 'Recording... Tap to stop' : isProcessing ? 'Processing...' : 'Tap to speak'}
-        </Text>
+        <View style={styles.recordingHint}>
+          <Text style={styles.recordingHintText}>
+            {isRecording ? 'Aufnahme läuft... Tippen zum Stoppen' : 
+             isProcessing ? 'Verarbeitung...' : 'Tippen Sie zum Sprechen'}
+          </Text>
+        </View>
+        
+        <Animated.View style={[
+          styles.micButtonContainer,
+          { transform: [{ scale: pulseAnimation }] }
+        ]}>
+          <TouchableOpacity
+            style={[
+              styles.micButton,
+              isRecording && styles.micButtonRecording,
+              (isProcessing || !hasPermission) && styles.micButtonDisabled,
+            ]}
+            onPress={handleMicPress}
+            disabled={isProcessing || !hasPermission}
+            activeOpacity={0.8}
+          >
+            {isRecording ? (
+              <MicOff color="#fff" size={32} />
+            ) : (
+              <Mic color="#fff" size={32} />
+            )}
+          </TouchableOpacity>
+        </Animated.View>
+
+        {isRecording && (
+          <View style={styles.recordingIndicator}>
+            <View style={styles.recordingDot} />
+            <Text style={styles.recordingText}>REC</Text>
+          </View>
+        )}
       </View>
     </SafeAreaView>
   );
@@ -1078,117 +1250,369 @@ const styles = StyleSheet.create({
     backgroundColor: Colors.dark.background,
   },
   settingsContent: {
-    padding: 24,
-    paddingTop: 40,
+    padding: 20,
+    paddingBottom: 40,
+  },
+  headerSection: {
+    alignItems: 'center',
+    marginBottom: 28,
+    marginTop: 12,
+  },
+  iconContainer: {
+    marginBottom: 16,
+  },
+  iconGradient: {
+    width: 72,
+    height: 72,
+    borderRadius: 20,
+    justifyContent: 'center',
+    alignItems: 'center',
   },
   settingsTitle: {
-    fontSize: 28,
-    fontWeight: '700',
+    fontSize: 26,
+    fontWeight: '700' as const,
     color: Colors.dark.text,
     marginBottom: 8,
+    textAlign: 'center',
   },
   settingsSubtitle: {
     fontSize: 15,
     color: Colors.dark.textSecondary,
-    marginBottom: 32,
+    textAlign: 'center',
+    lineHeight: 22,
+    paddingHorizontal: 20,
   },
-  settingSection: {
-    marginBottom: 28,
+  featureCards: {
+    flexDirection: 'row',
+    gap: 12,
+    marginBottom: 24,
+  },
+  featureCard: {
+    flex: 1,
+    flexDirection: 'row',
+    alignItems: 'center',
+    backgroundColor: Colors.dark.surface,
+    borderRadius: 14,
+    padding: 14,
+    gap: 12,
+    borderWidth: 1,
+    borderColor: Colors.dark.border,
+  },
+  featureIcon: {
+    width: 40,
+    height: 40,
+    borderRadius: 10,
+    justifyContent: 'center',
+    alignItems: 'center',
+  },
+  featureTextContainer: {
+    flex: 1,
+  },
+  featureTitle: {
+    fontSize: 13,
+    fontWeight: '600' as const,
+    color: Colors.dark.text,
+    marginBottom: 2,
+  },
+  featureDesc: {
+    fontSize: 11,
+    color: Colors.dark.textMuted,
+  },
+  settingCard: {
+    backgroundColor: Colors.dark.surface,
+    borderRadius: 16,
+    padding: 18,
+    marginBottom: 24,
+    borderWidth: 1,
+    borderColor: Colors.dark.border,
+  },
+  settingHeader: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 10,
+    marginBottom: 18,
+  },
+  settingCardTitle: {
+    fontSize: 16,
+    fontWeight: '600' as const,
+    color: Colors.dark.text,
+  },
+  settingRow: {
+    marginBottom: 12,
   },
   settingLabel: {
-    fontSize: 14,
-    fontWeight: '600',
+    fontSize: 13,
+    fontWeight: '600' as const,
     color: Colors.dark.textSecondary,
-    marginBottom: 12,
+    marginBottom: 10,
     textTransform: 'uppercase',
     letterSpacing: 0.5,
   },
-  optionRow: {
+  toggleContainer: {
     flexDirection: 'row',
+    backgroundColor: Colors.dark.surfaceLight,
+    borderRadius: 10,
+    padding: 4,
+  },
+  toggleOption: {
+    flex: 1,
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'center',
+    paddingVertical: 10,
+    paddingHorizontal: 16,
+    borderRadius: 8,
+    gap: 6,
+  },
+  toggleOptionActive: {
+    backgroundColor: Colors.dark.primary,
+  },
+  toggleText: {
+    fontSize: 14,
+    fontWeight: '500' as const,
+    color: Colors.dark.textMuted,
+  },
+  toggleTextActive: {
+    color: '#fff',
+  },
+  genderFilterRow: {
+    marginBottom: 14,
+  },
+  filterLabel: {
+    fontSize: 12,
+    color: Colors.dark.textMuted,
+    marginBottom: 8,
+  },
+  genderFilters: {
+    flexDirection: 'row',
+    gap: 8,
+  },
+  genderChip: {
+    paddingHorizontal: 14,
+    paddingVertical: 8,
+    borderRadius: 20,
+    backgroundColor: Colors.dark.surfaceLight,
+    borderWidth: 1,
+    borderColor: Colors.dark.border,
+  },
+  genderChipActive: {
+    backgroundColor: Colors.dark.primary + '20',
+    borderColor: Colors.dark.primary,
+  },
+  genderChipText: {
+    fontSize: 13,
+    color: Colors.dark.textMuted,
+    fontWeight: '500' as const,
+  },
+  genderChipTextActive: {
+    color: Colors.dark.primary,
+  },
+  caseSelectorButton: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'space-between',
+    backgroundColor: Colors.dark.surfaceLight,
+    borderRadius: 12,
+    padding: 14,
+    borderWidth: 1,
+    borderColor: Colors.dark.border,
+  },
+  caseSelectorLeft: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 10,
+  },
+  caseSelectorButtonText: {
+    fontSize: 15,
+    color: Colors.dark.text,
+  },
+  caseList: {
+    marginTop: 12,
+    maxHeight: 280,
+    backgroundColor: Colors.dark.surfaceLight,
+    borderRadius: 12,
+    borderWidth: 1,
+    borderColor: Colors.dark.border,
+  },
+  caseItem: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'space-between',
+    padding: 12,
+    borderBottomWidth: 1,
+    borderBottomColor: Colors.dark.border,
+  },
+  caseItemSelected: {
+    backgroundColor: Colors.dark.primary + '15',
+  },
+  caseItemLeft: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    flex: 1,
     gap: 12,
   },
-  optionButton: {
+  caseAvatar: {
+    width: 36,
+    height: 36,
+    borderRadius: 18,
+    justifyContent: 'center',
+    alignItems: 'center',
+  },
+  caseAvatarFemale: {
+    backgroundColor: '#E91E63',
+  },
+  caseAvatarMale: {
+    backgroundColor: '#2196F3',
+  },
+  caseItemContent: {
     flex: 1,
-    paddingVertical: 14,
-    paddingHorizontal: 16,
-    borderRadius: 12,
-    backgroundColor: Colors.dark.surface,
+  },
+  caseItemName: {
+    fontSize: 15,
+    fontWeight: '600' as const,
+    color: Colors.dark.text,
+    marginBottom: 2,
+  },
+  caseItemComplaint: {
+    fontSize: 12,
+    color: Colors.dark.textMuted,
+  },
+  caseItemRight: {
+    marginLeft: 8,
+  },
+  categoryBadge: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 4,
+    backgroundColor: Colors.dark.primary + '15',
+    paddingHorizontal: 8,
+    paddingVertical: 4,
+    borderRadius: 6,
+  },
+  caseItemCategory: {
+    fontSize: 10,
+    color: Colors.dark.primary,
+    fontWeight: '600' as const,
+  },
+  divider: {
+    height: 1,
+    backgroundColor: Colors.dark.border,
+    marginVertical: 18,
+  },
+  personalityRow: {
+    flexDirection: 'row',
+    gap: 10,
+    marginBottom: 18,
+  },
+  personalityButton: {
+    flex: 1,
+    paddingVertical: 12,
+    paddingHorizontal: 12,
+    borderRadius: 10,
+    backgroundColor: Colors.dark.surfaceLight,
     borderWidth: 1,
     borderColor: Colors.dark.border,
     alignItems: 'center',
   },
-  optionButtonActive: {
-    backgroundColor: Colors.dark.primary,
+  personalityButtonActive: {
+    backgroundColor: Colors.dark.primary + '20',
     borderColor: Colors.dark.primary,
   },
-  optionText: {
-    fontSize: 14,
-    fontWeight: '600',
-    color: Colors.dark.textSecondary,
+  personalityText: {
+    fontSize: 13,
+    fontWeight: '600' as const,
+    color: Colors.dark.textMuted,
   },
-  optionTextActive: {
-    color: Colors.dark.text,
+  personalityTextActive: {
+    color: Colors.dark.primary,
+  },
+  difficultyRow: {
+    flexDirection: 'row',
+    gap: 10,
+  },
+  difficultyButton: {
+    flex: 1,
+    paddingVertical: 12,
+    borderRadius: 10,
+    backgroundColor: Colors.dark.surfaceLight,
+    borderWidth: 1,
+    borderColor: Colors.dark.border,
+    alignItems: 'center',
+  },
+  difficultyButtonActive: {
+    backgroundColor: Colors.dark.primary + '20',
+    borderColor: Colors.dark.primary,
+  },
+  difficultyText: {
+    fontSize: 14,
+    fontWeight: '700' as const,
+    color: Colors.dark.textMuted,
+  },
+  difficultyTextActive: {
+    color: Colors.dark.primary,
   },
   startButton: {
-    backgroundColor: Colors.dark.primary,
+    borderRadius: 14,
+    overflow: 'hidden',
+    marginBottom: 16,
+  },
+  startButtonGradient: {
     flexDirection: 'row',
     alignItems: 'center',
     justifyContent: 'center',
     paddingVertical: 18,
-    borderRadius: 16,
-    marginTop: 20,
-    gap: 12,
+    gap: 10,
   },
   startButtonText: {
-    fontSize: 18,
-    fontWeight: '600',
-    color: Colors.dark.text,
+    fontSize: 17,
+    fontWeight: '700' as const,
+    color: '#fff',
+  },
+  tipText: {
+    fontSize: 12,
+    color: Colors.dark.textMuted,
+    textAlign: 'center',
   },
   sessionHeader: {
     flexDirection: 'row',
     alignItems: 'center',
     justifyContent: 'space-between',
     paddingHorizontal: 16,
-    paddingVertical: 12,
+    paddingVertical: 14,
     borderBottomWidth: 1,
     borderBottomColor: Colors.dark.border,
+    backgroundColor: Colors.dark.surface,
   },
   headerButton: {
-    width: 40,
-    height: 40,
-    borderRadius: 20,
-    backgroundColor: Colors.dark.surface,
+    width: 42,
+    height: 42,
+    borderRadius: 21,
+    backgroundColor: Colors.dark.surfaceLight,
     justifyContent: 'center',
     alignItems: 'center',
   },
+  headerButtonActive: {
+    backgroundColor: Colors.dark.primary,
+  },
+  sessionInfo: {
+    alignItems: 'center',
+  },
   sessionTitle: {
-    fontSize: 16,
+    fontSize: 17,
     fontWeight: '600' as const,
     color: Colors.dark.text,
+    marginBottom: 4,
   },
-  voiceInfoCard: {
-    backgroundColor: Colors.dark.surface,
-    borderRadius: 12,
-    padding: 16,
-    marginBottom: 24,
-    borderWidth: 1,
-    borderColor: Colors.dark.primary + '40',
+  sessionBadge: {
+    backgroundColor: Colors.dark.primary + '20',
+    paddingHorizontal: 10,
+    paddingVertical: 3,
+    borderRadius: 10,
   },
-  voiceInfoHeader: {
-    flexDirection: 'row' as const,
-    alignItems: 'center' as const,
-    gap: 10,
-    marginBottom: 8,
-  },
-  voiceInfoTitle: {
-    fontSize: 15,
+  sessionBadgeText: {
+    fontSize: 11,
+    color: Colors.dark.primary,
     fontWeight: '600' as const,
-    color: Colors.dark.text,
-  },
-  voiceInfoText: {
-    fontSize: 13,
-    color: Colors.dark.textSecondary,
-    lineHeight: 19,
   },
   messagesContainer: {
     flex: 1,
@@ -1200,48 +1624,56 @@ const styles = StyleSheet.create({
   messageRow: {
     flexDirection: 'row',
     alignItems: 'flex-end',
-    marginBottom: 16,
+    marginBottom: 14,
   },
   messageRowRight: {
     justifyContent: 'flex-end',
   },
   avatarPatient: {
-    width: 36,
-    height: 36,
-    borderRadius: 18,
-    backgroundColor: Colors.dark.surfaceLight,
+    width: 34,
+    height: 34,
+    borderRadius: 17,
     justifyContent: 'center',
     alignItems: 'center',
     marginRight: 10,
   },
+  avatarFemale: {
+    backgroundColor: '#E91E63',
+  },
+  avatarMale: {
+    backgroundColor: '#2196F3',
+  },
   avatarArzt: {
-    width: 36,
-    height: 36,
-    borderRadius: 18,
+    width: 34,
+    height: 34,
+    borderRadius: 17,
     backgroundColor: Colors.dark.primary,
     justifyContent: 'center',
     alignItems: 'center',
     marginLeft: 10,
   },
   messageBubble: {
-    maxWidth: '70%',
+    maxWidth: '72%',
     padding: 14,
-    borderRadius: 16,
+    borderRadius: 18,
   },
   messageBubblePatient: {
     backgroundColor: Colors.dark.surface,
     borderBottomLeftRadius: 4,
+    borderWidth: 1,
+    borderColor: Colors.dark.border,
   },
   messageBubbleArzt: {
     backgroundColor: Colors.dark.primary,
     borderBottomRightRadius: 4,
   },
   roleLabel: {
-    fontSize: 11,
-    fontWeight: '600',
+    fontSize: 10,
+    fontWeight: '600' as const,
     color: Colors.dark.textMuted,
     marginBottom: 4,
     textTransform: 'uppercase',
+    letterSpacing: 0.5,
   },
   messageText: {
     fontSize: 15,
@@ -1251,40 +1683,63 @@ const styles = StyleSheet.create({
   processingContainer: {
     flexDirection: 'row',
     alignItems: 'center',
-    justifyContent: 'center',
     padding: 16,
     gap: 12,
+  },
+  processingDots: {
+    flexDirection: 'row',
+    gap: 4,
+  },
+  dot: {
+    width: 8,
+    height: 8,
+    borderRadius: 4,
+    backgroundColor: Colors.dark.primary,
+    opacity: 0.4,
+  },
+  dot1: {
+    opacity: 1,
+  },
+  dot2: {
+    opacity: 0.6,
+  },
+  dot3: {
+    opacity: 0.3,
   },
   processingText: {
     fontSize: 14,
     color: Colors.dark.textSecondary,
   },
-  hintContainer: {
+  controlsContainer: {
+    alignItems: 'center',
+    paddingVertical: 20,
     paddingHorizontal: 20,
-    paddingVertical: 12,
     backgroundColor: Colors.dark.surface,
     borderTopWidth: 1,
     borderTopColor: Colors.dark.border,
   },
-  hintText: {
+  recordingHint: {
+    marginBottom: 16,
+  },
+  recordingHintText: {
     fontSize: 13,
     color: Colors.dark.textSecondary,
-    textAlign: 'center',
   },
-  controlsContainer: {
-    alignItems: 'center',
-    paddingVertical: 24,
-    paddingHorizontal: 20,
-    backgroundColor: Colors.dark.surface,
+  micButtonContainer: {
+    marginBottom: 8,
   },
   micButton: {
-    width: 80,
-    height: 80,
-    borderRadius: 40,
+    width: 76,
+    height: 76,
+    borderRadius: 38,
     backgroundColor: Colors.dark.primary,
     justifyContent: 'center',
     alignItems: 'center',
-    marginBottom: 12,
+    shadowColor: Colors.dark.primary,
+    shadowOffset: { width: 0, height: 4 },
+    shadowOpacity: 0.3,
+    shadowRadius: 8,
+    elevation: 8,
   },
   micButtonRecording: {
     backgroundColor: Colors.dark.error,
@@ -1293,85 +1748,25 @@ const styles = StyleSheet.create({
     backgroundColor: Colors.dark.textMuted,
     opacity: 0.5,
   },
-  micLabel: {
-    fontSize: 14,
-    color: Colors.dark.textSecondary,
-  },
-  caseModeRow: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    justifyContent: 'center',
-    gap: 12,
-    marginBottom: 16,
-  },
-  caseModeOption: {
+  recordingIndicator: {
     flexDirection: 'row',
     alignItems: 'center',
     gap: 6,
   },
-  caseModeText: {
-    fontSize: 14,
-    color: Colors.dark.textMuted,
+  recordingDot: {
+    width: 8,
+    height: 8,
+    borderRadius: 4,
+    backgroundColor: Colors.dark.error,
   },
-  caseModeTextActive: {
-    color: Colors.dark.primary,
-    fontWeight: '600',
-  },
-  caseSelectorButton: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    justifyContent: 'space-between',
-    backgroundColor: Colors.dark.surface,
-    borderRadius: 12,
-    padding: 14,
-    borderWidth: 1,
-    borderColor: Colors.dark.border,
-  },
-  caseSelectorButtonText: {
-    fontSize: 15,
-    color: Colors.dark.text,
-  },
-  caseList: {
-    marginTop: 12,
-    backgroundColor: Colors.dark.surface,
-    borderRadius: 12,
-    borderWidth: 1,
-    borderColor: Colors.dark.border,
-    overflow: 'hidden',
-  },
-  caseItem: {
-    padding: 14,
-    borderBottomWidth: 1,
-    borderBottomColor: Colors.dark.border,
-  },
-  caseItemSelected: {
-    backgroundColor: Colors.dark.primary + '20',
-  },
-  caseItemContent: {
-    flexDirection: 'row',
-    justifyContent: 'space-between',
-    alignItems: 'center',
-    marginBottom: 4,
-  },
-  caseItemName: {
-    fontSize: 15,
-    fontWeight: '600',
-    color: Colors.dark.text,
-  },
-  caseItemCategory: {
+  recordingText: {
     fontSize: 12,
-    color: Colors.dark.primary,
-    backgroundColor: Colors.dark.primary + '20',
-    paddingHorizontal: 8,
-    paddingVertical: 2,
-    borderRadius: 8,
-  },
-  caseItemComplaint: {
-    fontSize: 13,
-    color: Colors.dark.textSecondary,
+    fontWeight: '600' as const,
+    color: Colors.dark.error,
+    letterSpacing: 1,
   },
   pronunciationHintContainer: {
-    backgroundColor: 'rgba(245, 166, 35, 0.15)',
+    backgroundColor: 'rgba(245, 166, 35, 0.12)',
     marginHorizontal: 16,
     marginBottom: 8,
     padding: 14,
@@ -1387,7 +1782,7 @@ const styles = StyleSheet.create({
   },
   pronunciationHintTitle: {
     fontSize: 13,
-    fontWeight: '600',
+    fontWeight: '600' as const,
     color: '#F5A623',
   },
   pronunciationHintText: {
