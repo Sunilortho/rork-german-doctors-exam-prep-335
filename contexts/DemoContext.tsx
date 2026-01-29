@@ -2,15 +2,19 @@ import { useState, useEffect, useCallback, useMemo } from 'react';
 import AsyncStorage from '@react-native-async-storage/async-storage';
 import createContextHook from '@nkzw/create-context-hook';
 
+console.log('[DemoContext] Module loaded');
+
 const DEMO_START_KEY = 'demo_start_timestamp';
 const DEMO_DURATION_MS = 48 * 60 * 60 * 1000; // 48 hours
 
 export const [DemoProvider, useDemo] = createContextHook(() => {
+  console.log('[DemoContext] Hook initializing');
   const [startTime, setStartTime] = useState<number | null>(null);
   const [isLoading, setIsLoading] = useState(true);
   const [currentTime, setCurrentTime] = useState(Date.now());
 
   useEffect(() => {
+    console.log('[DemoContext] Running initializeDemo effect');
     initializeDemo();
   }, []);
 
@@ -23,8 +27,10 @@ export const [DemoProvider, useDemo] = createContextHook(() => {
   }, []);
 
   const initializeDemo = async () => {
+    console.log('[DemoContext] initializeDemo started');
     try {
       const stored = await AsyncStorage.getItem(DEMO_START_KEY);
+      console.log('[DemoContext] Stored value:', stored);
       
       if (stored) {
         setStartTime(parseInt(stored, 10));
@@ -33,11 +39,13 @@ export const [DemoProvider, useDemo] = createContextHook(() => {
         await AsyncStorage.setItem(DEMO_START_KEY, now.toString());
         setStartTime(now);
       }
+      console.log('[DemoContext] initializeDemo success');
     } catch (error) {
-      console.log('[Demo] Error initializing demo:', error);
+      console.log('[DemoContext] Error initializing demo:', error);
       const now = Date.now();
       setStartTime(now);
     } finally {
+      console.log('[DemoContext] Setting isLoading to false');
       setIsLoading(false);
     }
   };

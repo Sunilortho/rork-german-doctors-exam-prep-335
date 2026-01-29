@@ -1,7 +1,7 @@
 import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
 import { Stack } from "expo-router";
 import * as SplashScreen from "expo-splash-screen";
-import React, { useEffect, Component, ReactNode } from "react";
+import React, { useEffect, useState, Component, ReactNode } from "react";
 import { View, ActivityIndicator, StyleSheet, Text } from "react-native";
 import { GestureHandlerRootView } from "react-native-gesture-handler";
 import { StatusBar } from "expo-status-bar";
@@ -12,22 +12,40 @@ import DemoExpiredScreen from "./demo-expired";
 import Colors from "@/constants/colors";
 import { trpc, trpcClient } from "@/lib/trpc";
 
+console.log('[RootLayout] Module loaded');
+
 SplashScreen.preventAutoHideAsync();
 
 const queryClient = new QueryClient();
 
 function DemoGate({ children }: { children: React.ReactNode }) {
   const { isExpired, isLoading } = useDemo();
+  const [forceShow, setForceShow] = useState(false);
 
-  if (isLoading) {
+  useEffect(() => {
+    console.log('[DemoGate] isLoading:', isLoading, 'isExpired:', isExpired);
+    
+    // Force show after 3 seconds if still loading
+    const timeout = setTimeout(() => {
+      if (isLoading) {
+        console.log('[DemoGate] Force showing content after timeout');
+        setForceShow(true);
+      }
+    }, 3000);
+
+    return () => clearTimeout(timeout);
+  }, [isLoading, isExpired]);
+
+  if (isLoading && !forceShow) {
     return (
       <View style={layoutStyles.loadingContainer}>
         <ActivityIndicator size="large" color={Colors.dark.primary} />
+        <Text style={layoutStyles.loadingText}>Loading...</Text>
       </View>
     );
   }
 
-  if (isExpired) {
+  if (isExpired && !forceShow) {
     return <DemoExpiredScreen />;
   }
 
@@ -130,6 +148,11 @@ const layoutStyles = StyleSheet.create({
     alignItems: 'center',
     backgroundColor: Colors.dark.background,
   },
+  loadingText: {
+    marginTop: 12,
+    color: Colors.dark.textSecondary,
+    fontSize: 14,
+  },
   errorContainer: {
     flex: 1,
     justifyContent: 'center',
@@ -151,8 +174,11 @@ const layoutStyles = StyleSheet.create({
 });
 
 export default function RootLayout() {
+  console.log('[RootLayout] Rendering');
+
   useEffect(() => {
-    SplashScreen.hideAsync();
+    console.log('[RootLayout] useEffect - hiding splash');
+    SplashScreen.hideAsync().catch(e => console.log('[RootLayout] Splash hide error:', e));
   }, []);
 
   return (
