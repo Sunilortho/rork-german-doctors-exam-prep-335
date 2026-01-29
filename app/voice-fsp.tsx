@@ -12,6 +12,7 @@ import {
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { Audio } from 'expo-av';
 import * as Speech from 'expo-speech';
+import { trpc } from '@/lib/trpc';
 import { LinearGradient } from 'expo-linear-gradient';
 import {
   Mic,
@@ -39,12 +40,10 @@ import { generateText } from '@rork-ai/toolkit-sdk';
 import {
   VoiceProfile,
   EmotionalState,
-  EMOTIONAL_SPEECH_PATTERNS,
   getRandomVoice,
   getVoiceByCharacteristics,
   processTextForNaturalSpeech,
   prepareTextForTTS,
-  calculateDynamicSpeed,
   detectEmotionalState,
 } from '@/constants/voiceProfiles';
 
@@ -261,6 +260,9 @@ export default function VoiceFSPScreen() {
   
   const recordingRef = useRef<Audio.Recording | null>(null);
   const scrollViewRef = useRef<ScrollView>(null);
+  const soundRef = useRef<Audio.Sound | null>(null);
+
+  const ttsMutation = trpc.tts.speak.useMutation();
 
   useEffect(() => {
     checkPermissions();
@@ -269,6 +271,10 @@ export default function VoiceFSPScreen() {
         recordingRef.current.stopAndUnloadAsync();
       }
       Speech.stop();
+      if (soundRef.current) {
+        soundRef.current.stopAsync();
+        soundRef.current.unloadAsync();
+      }
     };
   }, []);
 
@@ -433,123 +439,85 @@ export default function VoiceFSPScreen() {
       
       console.log(`[VoiceFSP] Speaking: "${ttsText.substring(0, 50)}..." with ${voice.name} (${emotionalState}) - ${patientGender} patient`);
       
-      await speakWithExpoSpeech(ttsText, voice, emotionalState, patientGender);
+      await speakWithCloudTTS(ttsText, patientGender);
     } catch (error) {
       console.log('[VoiceFSP] Speech error:', error);
       setIsSpeaking(false);
     }
   };
 
-  const speakWithExpoSpeech = async (
+  const speakWithCloudTTS = async (
     text: string,
-    voice: VoiceProfile,
-    emotionalState: EmotionalState,
-    patientGender: 'female' | 'male' = 'female'
+    patientGender: 'female' | 'male'
+  ) => {
+    try {
+      if (soundRef.current) {
+        await soundRef.current.stopAsync();
+        await soundRef.current.unloadAsync();
+        soundRef.current = null;
+      }
+
+      const openAiVoice = patientGender === 'female' ? 'shimmer' : 'onyx';
+      
+      console.log(`[VoiceFSP] Using OpenAI TTS with voice: ${openAiVoice} for ${patientGender} patient`);
+
+      const result = await ttsMutation.mutateAsync({
+        text,
+        voice: openAiVoice,
+        speed: 1.0,
+      });
+
+      const audioUri = `data:${result.mimeType};base64,${result.audio}`;
+      
+      const { sound } = await Audio.Sound.createAsync(
+        { uri: audioUri },
+        { shouldPlay: true },
+        (status) => {
+          if (status.isLoaded && status.didJustFinish) {
+            console.log('[VoiceFSP] Cloud TTS playback completed');
+            setIsSpeaking(false);
+          }
+        }
+      );
+      
+      soundRef.current = sound;
+      console.log('[VoiceFSP] Cloud TTS playback started');
+    } catch (error) {
+      console.log('[VoiceFSP] Cloud TTS error, falling back to expo-speech:', error);
+      await speakWithExpoSpeechFallback(text, patientGender);
+    }
+  };
+
+  const speakWithExpoSpeechFallback = async (
+    text: string,
+    patientGender: 'female' | 'male'
   ) => {
     try {
       await Speech.stop();
       
-      const pattern = EMOTIONAL_SPEECH_PATTERNS[emotionalState];
-      const dynamicRate = calculateDynamicSpeed(voice.rate, emotionalState);
+      const finalPitch = patientGender === 'female' ? 1.4 : 0.75;
+      const finalRate = patientGender === 'female' ? 1.05 : 0.92;
       
-      const voices = await Speech.getAvailableVoicesAsync();
-      const germanVoices = voices.filter(v => v.language.startsWith('de'));
-      
-      const femaleIdentifiers = ['anna', 'petra', 'helena', 'marlene', 'vicki', 'female', 'frau', 'woman', 'girl', 'sabine', 'helga', 'julia', 'maria', 'lisa', 'sarah', 'katja', 'monika', 'claudia', 'stefanie', 'heike', 'fem', 'weiblich', 'yuna', 'zira', 'hedda', 'katrin', 'amala', 'elke', 'ingrid', 'louisa', 'serafina', 'conchita', 'eva', 'emma', 'sophia', 'lena', 'hannah', 'mia', 'lea', 'nele', 'nina', 'samantha', 'karen', 'tessa', 'fiona', 'moira', 'ava', 'allison', 'susan', 'kathy', 'princess', 'victoria', 'alice', 'nova', 'shimmer', 'coral', 'sage', 'silke', 'gisela', 'renate', 'ursula', 'brigitte', 'christa', 'irmgard', 'karin', 'margit', 'sigrid', 'traude', 'elfriede', 'frieda', 'gertrud', 'hilde', 'inge', 'johanna', 'enhanced', 'premium'];
-      const maleIdentifiers = ['stefan', 'markus', 'hans', 'male', 'mann', 'herr', 'man', 'boy', 'heinrich', 'thomas', 'daniel', 'martin', 'michael', 'andreas', 'peter', 'klaus', 'jürgen', 'wolfgang', 'dieter', 'masc', 'männlich', 'conrad', 'killian', 'florian', 'jonas', 'christoph', 'jan', 'karsten', 'ralf', 'bernd', 'georg', 'felix', 'leon', 'lukas', 'paul', 'tim', 'tobias', 'sebastian', 'benjamin', 'alexander', 'david', 'alex', 'tom', 'fred', 'ralph', 'bruce', 'albert', 'gordon', 'lee', 'oliver', 'rishi', 'aaron', 'onyx', 'echo', 'fable', 'alloy', 'ernst', 'friedrich', 'gerhard', 'helmut', 'horst', 'karl', 'kurt', 'ludwig', 'otto', 'walter', 'werner', 'wilhelm'];
-      
-      const checkVoiceGender = (voiceObj: { name?: string; identifier?: string }): 'female' | 'male' | 'unknown' => {
-        const nameToCheck = `${voiceObj.name || ''} ${voiceObj.identifier || ''}`.toLowerCase();
-        const hasFemaleId = femaleIdentifiers.some(fn => nameToCheck.includes(fn));
-        const hasMaleId = maleIdentifiers.some(mn => nameToCheck.includes(mn));
-        
-        if (hasFemaleId && !hasMaleId) return 'female';
-        if (hasMaleId && !hasFemaleId) return 'male';
-        return 'unknown';
-      };
-      
-      const categorizedVoices = germanVoices.map(v => ({
-        voice: v,
-        gender: checkVoiceGender(v)
-      }));
-      
-      const femaleVoices = categorizedVoices.filter(v => v.gender === 'female');
-      const maleVoices = categorizedVoices.filter(v => v.gender === 'male');
-      const unknownVoices = categorizedVoices.filter(v => v.gender === 'unknown');
-      
-      console.log('[VoiceFSP] Looking for', patientGender, 'voice');
-      console.log('[VoiceFSP] Female voices:', femaleVoices.map(v => v.voice.name).join(', ') || 'none');
-      console.log('[VoiceFSP] Male voices:', maleVoices.map(v => v.voice.name).join(', ') || 'none');
-      console.log('[VoiceFSP] Unknown voices:', unknownVoices.map(v => v.voice.name).join(', ') || 'none');
-      
-      let germanVoice;
-      
-      if (patientGender === 'female') {
-        if (femaleVoices.length > 0) {
-          germanVoice = femaleVoices[0].voice;
-          console.log('[VoiceFSP] Using identified female voice:', germanVoice.name);
-        } else if (unknownVoices.length > 0) {
-          germanVoice = unknownVoices[0].voice;
-          console.log('[VoiceFSP] Using unknown voice for female:', germanVoice.name);
-        } else if (germanVoices.length > 0) {
-          germanVoice = germanVoices[0];
-          console.log('[VoiceFSP] Using fallback German voice for female:', germanVoice.name);
-        }
-      } else {
-        if (maleVoices.length > 0) {
-          germanVoice = maleVoices[0].voice;
-          console.log('[VoiceFSP] Using identified male voice:', germanVoice.name);
-        } else if (unknownVoices.length > 1) {
-          germanVoice = unknownVoices[unknownVoices.length - 1].voice;
-          console.log('[VoiceFSP] Using last unknown voice for male:', germanVoice.name);
-        } else if (unknownVoices.length > 0) {
-          germanVoice = unknownVoices[0].voice;
-          console.log('[VoiceFSP] Using unknown voice for male:', germanVoice.name);
-        } else if (germanVoices.length > 1) {
-          germanVoice = germanVoices[germanVoices.length - 1];
-          console.log('[VoiceFSP] Using fallback German voice for male:', germanVoice.name);
-        } else if (germanVoices.length > 0) {
-          germanVoice = germanVoices[0];
-          console.log('[VoiceFSP] Using only German voice for male:', germanVoice.name);
-        }
-      }
-      
-      // Use maximum pitch difference for very clear gender differentiation
-      // Female: very high pitch for distinctly soft feminine sound
-      // Male: deep low pitch for distinctly masculine sound
-      const finalPitch = patientGender === 'female' ? 1.95 : 0.65;
-      const finalRate = patientGender === 'female' ? 1.15 : 0.88;
-      
-      console.log('[VoiceFSP] Selected voice:', germanVoice?.name || 'default German', 'for', patientGender, 'patient');
-      console.log('[VoiceFSP] FINAL SPEECH CONFIG - Gender:', patientGender, 'Pitch:', finalPitch, 'Rate:', finalRate, 'Voice:', germanVoice?.name || 'system default');
-      
-      // For female patients, try to use a voice that naturally sounds female
-      // If no female voice found, pitch adjustment helps differentiate
-      const useVoiceId = germanVoice?.identifier;
+      console.log('[VoiceFSP] Fallback expo-speech for', patientGender);
       
       await Speech.speak(text, {
         language: 'de-DE',
-        voice: useVoiceId,
         pitch: finalPitch,
         rate: finalRate,
-        onStart: () => {
-          console.log('[VoiceFSP] Speech started for', patientGender, 'patient with pitch', finalPitch);
-        },
         onDone: () => {
-          console.log('[VoiceFSP] Speech completed');
+          console.log('[VoiceFSP] Fallback speech completed');
           setIsSpeaking(false);
         },
         onError: (error) => {
-          console.log('[VoiceFSP] Speech error:', error);
+          console.log('[VoiceFSP] Fallback speech error:', error);
           setIsSpeaking(false);
         },
         onStopped: () => {
-          console.log('[VoiceFSP] Speech stopped');
           setIsSpeaking(false);
         },
       });
     } catch (error) {
-      console.log('[VoiceFSP] speakWithExpoSpeech error:', error);
+      console.log('[VoiceFSP] Fallback speech error:', error);
       setIsSpeaking(false);
     }
   };
@@ -773,6 +741,11 @@ export default function VoiceFSPScreen() {
     setMessages([]);
     setShowSettings(true);
     Speech.stop();
+    if (soundRef.current) {
+      await soundRef.current.stopAsync();
+      await soundRef.current.unloadAsync();
+      soundRef.current = null;
+    }
     setCurrentEmotionalState('neutral');
   };
 

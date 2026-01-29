@@ -10,6 +10,7 @@ import { DocumentsProvider } from "@/contexts/DocumentsContext";
 import { DemoProvider, useDemo } from "@/contexts/DemoContext";
 import DemoExpiredScreen from "./demo-expired";
 import Colors from "@/constants/colors";
+import { trpc, trpcClient } from "@/lib/trpc";
 
 SplashScreen.preventAutoHideAsync();
 
@@ -109,19 +110,21 @@ export default function RootLayout() {
   }, []);
 
   return (
-    <QueryClientProvider client={queryClient}>
-      <GestureHandlerRootView style={{ flex: 1 }}>
-        <DemoProvider>
-          <UserProvider>
-            <DocumentsProvider>
-              <StatusBar style="light" />
-              <DemoGate>
-                <RootLayoutNav />
-              </DemoGate>
-            </DocumentsProvider>
-          </UserProvider>
-        </DemoProvider>
-      </GestureHandlerRootView>
-    </QueryClientProvider>
+    <trpc.Provider client={trpcClient} queryClient={queryClient}>
+      <QueryClientProvider client={queryClient}>
+        <GestureHandlerRootView style={{ flex: 1 }}>
+          <DemoProvider>
+            <UserProvider>
+              <DocumentsProvider>
+                <StatusBar style="light" />
+                <DemoGate>
+                  <RootLayoutNav />
+                </DemoGate>
+              </DocumentsProvider>
+            </UserProvider>
+          </DemoProvider>
+        </GestureHandlerRootView>
+      </QueryClientProvider>
+    </trpc.Provider>
   );
 }
