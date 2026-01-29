@@ -25,16 +25,14 @@ function DemoGate({ children }: { children: React.ReactNode }) {
   useEffect(() => {
     console.log('[DemoGate] isLoading:', isLoading, 'isExpired:', isExpired);
     
-    // Force show after 3 seconds if still loading
+    // Force show after 1.5 seconds if still loading
     const timeout = setTimeout(() => {
-      if (isLoading) {
-        console.log('[DemoGate] Force showing content after timeout');
-        setForceShow(true);
-      }
-    }, 3000);
+      console.log('[DemoGate] Force showing content after timeout');
+      setForceShow(true);
+    }, 1500);
 
     return () => clearTimeout(timeout);
-  }, [isLoading, isExpired]);
+  }, []);
 
   if (isLoading && !forceShow) {
     return (
