@@ -458,13 +458,14 @@ export default function VoiceFSPScreen() {
       }
 
       const openAiVoice = patientGender === 'female' ? 'shimmer' : 'onyx';
+      const voiceSpeed = patientGender === 'female' ? 1.0 : 1.15;
       
-      console.log(`[VoiceFSP] Using OpenAI TTS with voice: ${openAiVoice} for ${patientGender} patient`);
+      console.log(`[VoiceFSP] Using OpenAI TTS with voice: ${openAiVoice}, speed: ${voiceSpeed} for ${patientGender} patient`);
 
       const result = await ttsMutation.mutateAsync({
         text,
         voice: openAiVoice,
-        speed: 1.0,
+        speed: voiceSpeed,
       });
 
       const audioUri = `data:${result.mimeType};base64,${result.audio}`;
