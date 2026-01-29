@@ -23,25 +23,25 @@ export interface SpeechModifiers {
 }
 
 export const VOICE_PROFILES: VoiceProfile[] = [
-  // Female voices - using 'shimmer' for warm, natural conversational voice
+  // Female voices - using 'nova' for warm, clearly feminine voice
   {
     id: 'female_young',
     name: 'Anna',
     gender: 'female',
     age: 'young',
-    openAiVoice: 'shimmer',
+    openAiVoice: 'nova',
     pitch: 1.0,
     rate: 1.0,
-    description: 'Young woman, warm conversational voice',
+    description: 'Young woman, warm expressive voice',
   },
   {
     id: 'female_middle',
     name: 'Sabine',
     gender: 'female',
     age: 'middle',
-    openAiVoice: 'shimmer',
+    openAiVoice: 'nova',
     pitch: 1.0,
-    rate: 1.0,
+    rate: 0.98,
     description: 'Middle-aged woman, warm conversational voice',
   },
   {
@@ -49,10 +49,10 @@ export const VOICE_PROFILES: VoiceProfile[] = [
     name: 'Helga',
     gender: 'female',
     age: 'elderly',
-    openAiVoice: 'shimmer',
+    openAiVoice: 'nova',
     pitch: 1.0,
-    rate: 1.0,
-    description: 'Elderly woman, warm conversational voice',
+    rate: 0.95,
+    description: 'Elderly woman, gentle caring voice',
   },
   // Male voices - using 'onyx' for deep, natural male voice
   {
