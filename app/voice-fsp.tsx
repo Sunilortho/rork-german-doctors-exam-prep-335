@@ -455,8 +455,8 @@ export default function VoiceFSPScreen() {
       const voices = await Speech.getAvailableVoicesAsync();
       const germanVoices = voices.filter(v => v.language.startsWith('de'));
       
-      const femaleIdentifiers = ['anna', 'petra', 'helena', 'marlene', 'vicki', 'female', 'frau', 'woman', 'girl', 'sabine', 'helga', 'julia', 'maria', 'lisa', 'sarah', 'katja', 'monika', 'claudia', 'stefanie', 'heike', 'fem', 'weiblich', 'yuna', 'zira', 'hedda', 'katrin', 'amala', 'elke', 'ingrid', 'louisa', 'serafina', 'conchita', 'eva', 'emma', 'sophia', 'lena', 'hannah', 'mia', 'lea', 'nele', 'nina', 'samantha', 'karen', 'tessa', 'fiona', 'moira', 'ava', 'allison', 'susan', 'kathy', 'princess', 'victoria', 'alice'];
-      const maleIdentifiers = ['stefan', 'markus', 'hans', 'male', 'mann', 'herr', 'man', 'boy', 'heinrich', 'thomas', 'daniel', 'martin', 'michael', 'andreas', 'peter', 'klaus', 'jürgen', 'wolfgang', 'dieter', 'masc', 'männlich', 'conrad', 'killian', 'florian', 'jonas', 'christoph', 'jan', 'karsten', 'ralf', 'bernd', 'georg', 'felix', 'leon', 'lukas', 'paul', 'tim', 'tobias', 'sebastian', 'benjamin', 'alexander', 'david', 'alex', 'tom', 'fred', 'ralph', 'bruce', 'albert', 'daniel', 'gordon', 'lee', 'oliver', 'rishi', 'aaron'];
+      const femaleIdentifiers = ['anna', 'petra', 'helena', 'marlene', 'vicki', 'female', 'frau', 'woman', 'girl', 'sabine', 'helga', 'julia', 'maria', 'lisa', 'sarah', 'katja', 'monika', 'claudia', 'stefanie', 'heike', 'fem', 'weiblich', 'yuna', 'zira', 'hedda', 'katrin', 'amala', 'elke', 'ingrid', 'louisa', 'serafina', 'conchita', 'eva', 'emma', 'sophia', 'lena', 'hannah', 'mia', 'lea', 'nele', 'nina', 'samantha', 'karen', 'tessa', 'fiona', 'moira', 'ava', 'allison', 'susan', 'kathy', 'princess', 'victoria', 'alice', 'nova', 'shimmer', 'coral', 'sage', 'silke', 'gisela', 'renate', 'ursula', 'brigitte', 'christa', 'irmgard', 'karin', 'margit', 'sigrid', 'traude', 'elfriede', 'frieda', 'gertrud', 'hilde', 'inge', 'johanna'];
+      const maleIdentifiers = ['stefan', 'markus', 'hans', 'male', 'mann', 'herr', 'man', 'boy', 'heinrich', 'thomas', 'daniel', 'martin', 'michael', 'andreas', 'peter', 'klaus', 'jürgen', 'wolfgang', 'dieter', 'masc', 'männlich', 'conrad', 'killian', 'florian', 'jonas', 'christoph', 'jan', 'karsten', 'ralf', 'bernd', 'georg', 'felix', 'leon', 'lukas', 'paul', 'tim', 'tobias', 'sebastian', 'benjamin', 'alexander', 'david', 'alex', 'tom', 'fred', 'ralph', 'bruce', 'albert', 'gordon', 'lee', 'oliver', 'rishi', 'aaron', 'onyx', 'echo', 'fable', 'alloy', 'ernst', 'friedrich', 'gerhard', 'helmut', 'horst', 'karl', 'kurt', 'ludwig', 'otto', 'walter', 'werner', 'wilhelm'];
       
       const checkVoiceGender = (voiceObj: { name?: string; identifier?: string }): 'female' | 'male' | 'unknown' => {
         const nameToCheck = `${voiceObj.name || ''} ${voiceObj.identifier || ''}`.toLowerCase();
@@ -514,18 +514,20 @@ export default function VoiceFSPScreen() {
         }
       }
       
-      const finalPitch = patientGender === 'male' ? 0.75 : 1.5;
+      const finalPitch = patientGender === 'female' ? 1.6 : 0.75;
       
       console.log('[VoiceFSP] Selected voice:', germanVoice?.name || 'default German', 'for', patientGender, 'patient');
       console.log('[VoiceFSP] Final pitch:', finalPitch);
       
       console.log('[VoiceFSP] FINAL SPEECH CONFIG - Gender:', patientGender, 'Pitch:', finalPitch, 'Voice:', germanVoice?.name || 'system default');
       
+      const finalRate = patientGender === 'female' ? 1.0 : 0.92;
+      
       await Speech.speak(text, {
         language: 'de-DE',
         voice: germanVoice?.identifier,
         pitch: finalPitch,
-        rate: Math.max(0.88, Math.min(0.98, dynamicRate)),
+        rate: finalRate,
         onStart: () => {
           console.log('[VoiceFSP] Speech started for', patientGender, 'patient with pitch', finalPitch);
         },
