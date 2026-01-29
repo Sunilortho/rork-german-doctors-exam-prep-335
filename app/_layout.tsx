@@ -1,8 +1,8 @@
 import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
 import { Stack } from "expo-router";
 import * as SplashScreen from "expo-splash-screen";
-import React, { useEffect } from "react";
-import { View, ActivityIndicator, StyleSheet } from "react-native";
+import React, { useEffect, Component, ReactNode } from "react";
+import { View, ActivityIndicator, StyleSheet, Text } from "react-native";
 import { GestureHandlerRootView } from "react-native-gesture-handler";
 import { StatusBar } from "expo-status-bar";
 import { UserProvider } from "@/contexts/UserContext";
@@ -95,12 +95,58 @@ function RootLayoutNav() {
   );
 }
 
+class ErrorBoundary extends Component<{ children: ReactNode }, { hasError: boolean; error: Error | null }> {
+  constructor(props: { children: ReactNode }) {
+    super(props);
+    this.state = { hasError: false, error: null };
+  }
+
+  static getDerivedStateFromError(error: Error) {
+    return { hasError: true, error };
+  }
+
+  componentDidCatch(error: Error, errorInfo: React.ErrorInfo) {
+    console.log('[ErrorBoundary] Caught error:', error);
+    console.log('[ErrorBoundary] Error info:', errorInfo);
+  }
+
+  render() {
+    if (this.state.hasError) {
+      return (
+        <View style={layoutStyles.errorContainer}>
+          <Text style={layoutStyles.errorTitle}>Something went wrong</Text>
+          <Text style={layoutStyles.errorMessage}>{this.state.error?.message || 'Unknown error'}</Text>
+        </View>
+      );
+    }
+    return this.props.children;
+  }
+}
+
 const layoutStyles = StyleSheet.create({
   loadingContainer: {
     flex: 1,
     justifyContent: 'center',
     alignItems: 'center',
     backgroundColor: Colors.dark.background,
+  },
+  errorContainer: {
+    flex: 1,
+    justifyContent: 'center',
+    alignItems: 'center',
+    backgroundColor: Colors.dark.background,
+    padding: 20,
+  },
+  errorTitle: {
+    fontSize: 20,
+    fontWeight: '600' as const,
+    color: Colors.dark.text,
+    marginBottom: 12,
+  },
+  errorMessage: {
+    fontSize: 14,
+    color: Colors.dark.textMuted,
+    textAlign: 'center',
   },
 });
 
@@ -110,21 +156,23 @@ export default function RootLayout() {
   }, []);
 
   return (
-    <trpc.Provider client={trpcClient} queryClient={queryClient}>
-      <QueryClientProvider client={queryClient}>
-        <GestureHandlerRootView style={{ flex: 1 }}>
-          <DemoProvider>
-            <UserProvider>
-              <DocumentsProvider>
-                <StatusBar style="light" />
-                <DemoGate>
-                  <RootLayoutNav />
-                </DemoGate>
-              </DocumentsProvider>
-            </UserProvider>
-          </DemoProvider>
-        </GestureHandlerRootView>
-      </QueryClientProvider>
-    </trpc.Provider>
+    <ErrorBoundary>
+      <trpc.Provider client={trpcClient} queryClient={queryClient}>
+        <QueryClientProvider client={queryClient}>
+          <GestureHandlerRootView style={{ flex: 1 }}>
+            <DemoProvider>
+              <UserProvider>
+                <DocumentsProvider>
+                  <StatusBar style="light" />
+                  <DemoGate>
+                    <RootLayoutNav />
+                  </DemoGate>
+                </DocumentsProvider>
+              </UserProvider>
+            </DemoProvider>
+          </GestureHandlerRootView>
+        </QueryClientProvider>
+      </trpc.Provider>
+    </ErrorBoundary>
   );
 }
