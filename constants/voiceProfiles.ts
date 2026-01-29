@@ -62,7 +62,7 @@ export const VOICE_PROFILES: VoiceProfile[] = [
     age: 'young',
     openAiVoice: 'onyx',
     pitch: 0.95,
-    rate: 1.0,
+    rate: 1.15,
     description: 'Young man, clear conversational voice',
   },
   {
@@ -72,7 +72,7 @@ export const VOICE_PROFILES: VoiceProfile[] = [
     age: 'middle',
     openAiVoice: 'onyx',
     pitch: 0.92,
-    rate: 0.98,
+    rate: 1.12,
     description: 'Middle-aged man, warm authoritative voice',
   },
   {
@@ -82,7 +82,7 @@ export const VOICE_PROFILES: VoiceProfile[] = [
     age: 'elderly',
     openAiVoice: 'onyx',
     pitch: 0.88,
-    rate: 0.95,
+    rate: 1.08,
     description: 'Elderly man, calm measured voice',
   },
 ];
@@ -238,9 +238,9 @@ export function prepareTextForTTS(text: string, emotionalState: EmotionalState):
 }
 
 export function calculateDynamicSpeed(baseRate: number, emotionalState: EmotionalState): number {
-  // Return 1.0 for natural speed - let the TTS model handle prosody
-  // Artificial speed modifications make it sound robotic
-  return 1.0;
+  const pattern = EMOTIONAL_SPEECH_PATTERNS[emotionalState];
+  // Apply the voice profile rate with emotional modifier
+  return baseRate * pattern.rateModifier;
 }
 
 export function detectEmotionalState(text: string, personality: 'anxious' | 'talkative' | 'brief'): EmotionalState {
