@@ -10,10 +10,11 @@ const getBaseUrl = () => {
   const url = process.env.EXPO_PUBLIC_RORK_API_BASE_URL;
 
   if (!url) {
-    console.warn("EXPO_PUBLIC_RORK_API_BASE_URL is not set, using fallback");
-    return "https://api.example.com";
+    console.warn("[TRPC] EXPO_PUBLIC_RORK_API_BASE_URL is not set");
+    return "";
   }
 
+  console.log("[TRPC] Using base URL:", url);
   return url;
 };
 

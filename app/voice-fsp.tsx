@@ -450,43 +450,8 @@ export default function VoiceFSPScreen() {
     text: string,
     patientGender: 'female' | 'male'
   ) => {
-    try {
-      if (soundRef.current) {
-        await soundRef.current.stopAsync();
-        await soundRef.current.unloadAsync();
-        soundRef.current = null;
-      }
-
-      const openAiVoice = patientGender === 'female' ? 'shimmer' : 'onyx';
-      const voiceSpeed = patientGender === 'female' ? 1.0 : 1.15;
-      
-      console.log(`[VoiceFSP] Using OpenAI TTS with voice: ${openAiVoice}, speed: ${voiceSpeed} for ${patientGender} patient`);
-
-      const result = await ttsMutation.mutateAsync({
-        text,
-        voice: openAiVoice,
-        speed: voiceSpeed,
-      });
-
-      const audioUri = `data:${result.mimeType};base64,${result.audio}`;
-      
-      const { sound } = await Audio.Sound.createAsync(
-        { uri: audioUri },
-        { shouldPlay: true },
-        (status) => {
-          if (status.isLoaded && status.didJustFinish) {
-            console.log('[VoiceFSP] Cloud TTS playback completed');
-            setIsSpeaking(false);
-          }
-        }
-      );
-      
-      soundRef.current = sound;
-      console.log('[VoiceFSP] Cloud TTS playback started');
-    } catch (error) {
-      console.log('[VoiceFSP] Cloud TTS error, falling back to expo-speech:', error);
-      await speakWithExpoSpeechFallback(text, patientGender);
-    }
+    console.log('[VoiceFSP] Using local speech for', patientGender);
+    await speakWithExpoSpeechFallback(text, patientGender);
   };
 
   const speakWithExpoSpeechFallback = async (
