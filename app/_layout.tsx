@@ -2,7 +2,7 @@ import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
 import { Stack } from "expo-router";
 import * as SplashScreen from "expo-splash-screen";
 import React, { useEffect, useState, Component, ReactNode } from "react";
-import { View, ActivityIndicator, StyleSheet, Text } from "react-native";
+import { View, ActivityIndicator, StyleSheet, Text, ScrollView } from "react-native";
 import { GestureHandlerRootView } from "react-native-gesture-handler";
 import { StatusBar } from "expo-status-bar";
 import { UserProvider } from "@/contexts/UserContext";
@@ -113,10 +113,10 @@ function RootLayoutNav() {
   );
 }
 
-class ErrorBoundary extends Component<{ children: ReactNode }, { hasError: boolean; error: Error | null }> {
+class ErrorBoundary extends Component<{ children: ReactNode }, { hasError: boolean; error: Error | null; errorInfo: string }> {
   constructor(props: { children: ReactNode }) {
     super(props);
-    this.state = { hasError: false, error: null };
+    this.state = { hasError: false, error: null, errorInfo: '' };
   }
 
   static getDerivedStateFromError(error: Error) {
@@ -125,7 +125,9 @@ class ErrorBoundary extends Component<{ children: ReactNode }, { hasError: boole
 
   componentDidCatch(error: Error, errorInfo: React.ErrorInfo) {
     console.log('[ErrorBoundary] Caught error:', error);
-    console.log('[ErrorBoundary] Error info:', errorInfo);
+    console.log('[ErrorBoundary] Error stack:', error.stack);
+    console.log('[ErrorBoundary] Component stack:', errorInfo.componentStack);
+    this.setState({ errorInfo: errorInfo.componentStack || '' });
   }
 
   render() {
@@ -134,6 +136,9 @@ class ErrorBoundary extends Component<{ children: ReactNode }, { hasError: boole
         <View style={layoutStyles.errorContainer}>
           <Text style={layoutStyles.errorTitle}>Something went wrong</Text>
           <Text style={layoutStyles.errorMessage}>{this.state.error?.message || 'Unknown error'}</Text>
+          <ScrollView style={layoutStyles.errorStack}>
+            <Text style={layoutStyles.errorStackText}>{this.state.error?.stack}</Text>
+          </ScrollView>
         </View>
       );
     }
@@ -170,6 +175,18 @@ const layoutStyles = StyleSheet.create({
     fontSize: 14,
     color: Colors.dark.textMuted,
     textAlign: 'center',
+  },
+  errorStack: {
+    maxHeight: 200,
+    marginTop: 16,
+    padding: 12,
+    backgroundColor: Colors.dark.surface,
+    borderRadius: 8,
+  },
+  errorStackText: {
+    fontSize: 10,
+    color: Colors.dark.textSecondary,
+    fontFamily: 'monospace',
   },
 });
 
