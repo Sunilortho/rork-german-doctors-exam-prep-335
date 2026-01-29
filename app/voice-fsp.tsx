@@ -514,10 +514,11 @@ export default function VoiceFSPScreen() {
         }
       }
       
-      // Use natural pitch values - subtle adjustments sound more realistic
-      // Female: slightly higher (1.15-1.2), Male: slightly lower (0.85-0.9)
-      const finalPitch = patientGender === 'female' ? 1.18 : 0.88;
-      const finalRate = patientGender === 'female' ? 1.02 : 0.94;
+      // Use maximum pitch difference for very clear gender differentiation
+      // Female: very high pitch for distinctly feminine sound
+      // Male: deep low pitch for distinctly masculine sound
+      const finalPitch = patientGender === 'female' ? 1.7 : 0.65;
+      const finalRate = patientGender === 'female' ? 1.08 : 0.88;
       
       console.log('[VoiceFSP] Selected voice:', germanVoice?.name || 'default German', 'for', patientGender, 'patient');
       console.log('[VoiceFSP] FINAL SPEECH CONFIG - Gender:', patientGender, 'Pitch:', finalPitch, 'Rate:', finalRate, 'Voice:', germanVoice?.name || 'system default');
