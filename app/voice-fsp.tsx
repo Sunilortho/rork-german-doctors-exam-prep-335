@@ -461,8 +461,8 @@ export default function VoiceFSPScreen() {
     try {
       await Speech.stop();
       
-      const finalPitch = patientGender === 'female' ? 1.4 : 0.75;
-      const finalRate = patientGender === 'female' ? 1.05 : 0.92;
+      const finalPitch = patientGender === 'female' ? 1.3 : 0.55;
+      const finalRate = patientGender === 'female' ? 1.0 : 0.88;
       
       console.log('[VoiceFSP] Fallback expo-speech for', patientGender);
       
