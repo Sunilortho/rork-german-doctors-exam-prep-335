@@ -54,36 +54,36 @@ export const VOICE_PROFILES: VoiceProfile[] = [
     rate: 0.95,
     description: 'Elderly woman, gentle caring voice',
   },
-  // Male voices - using 'echo' for clear, distinctly masculine voice
+  // Male voices - using 'onyx' for deep, authoritative masculine voice
   {
     id: 'male_young',
     name: 'Markus',
     gender: 'male',
     age: 'young',
-    openAiVoice: 'echo',
+    openAiVoice: 'onyx',
     pitch: 1.0,
     rate: 1.0,
-    description: 'Young man, clear conversational voice',
+    description: 'Young man, deep confident voice',
   },
   {
     id: 'male_middle',
     name: 'Stefan',
     gender: 'male',
     age: 'middle',
-    openAiVoice: 'echo',
+    openAiVoice: 'onyx',
     pitch: 1.0,
     rate: 0.98,
-    description: 'Middle-aged man, warm authoritative voice',
+    description: 'Middle-aged man, deep authoritative voice',
   },
   {
     id: 'male_elderly',
     name: 'Heinrich',
     gender: 'male',
     age: 'elderly',
-    openAiVoice: 'echo',
+    openAiVoice: 'onyx',
     pitch: 1.0,
     rate: 0.95,
-    description: 'Elderly man, calm measured voice',
+    description: 'Elderly man, deep measured voice',
   },
 ];
 
