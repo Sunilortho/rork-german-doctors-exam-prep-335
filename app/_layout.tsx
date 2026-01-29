@@ -2,15 +2,36 @@ import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
 import { Stack } from "expo-router";
 import * as SplashScreen from "expo-splash-screen";
 import React, { useEffect } from "react";
+import { View, ActivityIndicator, StyleSheet } from "react-native";
 import { GestureHandlerRootView } from "react-native-gesture-handler";
 import { StatusBar } from "expo-status-bar";
 import { UserProvider } from "@/contexts/UserContext";
 import { DocumentsProvider } from "@/contexts/DocumentsContext";
+import { DemoProvider, useDemo } from "@/contexts/DemoContext";
+import DemoExpiredScreen from "./demo-expired";
 import Colors from "@/constants/colors";
 
 SplashScreen.preventAutoHideAsync();
 
 const queryClient = new QueryClient();
+
+function DemoGate({ children }: { children: React.ReactNode }) {
+  const { isExpired, isLoading } = useDemo();
+
+  if (isLoading) {
+    return (
+      <View style={layoutStyles.loadingContainer}>
+        <ActivityIndicator size="large" color={Colors.dark.primary} />
+      </View>
+    );
+  }
+
+  if (isExpired) {
+    return <DemoExpiredScreen />;
+  }
+
+  return <>{children}</>;
+}
 
 function RootLayoutNav() {
   return (
@@ -63,9 +84,24 @@ function RootLayoutNav() {
           headerStyle: { backgroundColor: Colors.dark.surface },
         }}
       />
+      <Stack.Screen
+        name="demo-expired"
+        options={{
+          headerShown: false,
+        }}
+      />
     </Stack>
   );
 }
+
+const layoutStyles = StyleSheet.create({
+  loadingContainer: {
+    flex: 1,
+    justifyContent: 'center',
+    alignItems: 'center',
+    backgroundColor: Colors.dark.background,
+  },
+});
 
 export default function RootLayout() {
   useEffect(() => {
@@ -75,12 +111,16 @@ export default function RootLayout() {
   return (
     <QueryClientProvider client={queryClient}>
       <GestureHandlerRootView style={{ flex: 1 }}>
-        <UserProvider>
-          <DocumentsProvider>
-            <StatusBar style="light" />
-            <RootLayoutNav />
-          </DocumentsProvider>
-        </UserProvider>
+        <DemoProvider>
+          <UserProvider>
+            <DocumentsProvider>
+              <StatusBar style="light" />
+              <DemoGate>
+                <RootLayoutNav />
+              </DemoGate>
+            </DocumentsProvider>
+          </UserProvider>
+        </DemoProvider>
       </GestureHandlerRootView>
     </QueryClientProvider>
   );

@@ -17,10 +17,12 @@ import {
   CheckCircle2,
   Clock,
   AlertCircle,
+  Sparkles,
 } from 'lucide-react-native';
 import Colors from '@/constants/colors';
 import { useUser } from '@/contexts/UserContext';
 import { useDocuments } from '@/contexts/DocumentsContext';
+import { useDemo } from '@/contexts/DemoContext';
 import WelcomeModal from '@/components/WelcomeModal';
 
 const { width } = Dimensions.get('window');
@@ -29,6 +31,7 @@ export default function RoadmapScreen() {
   const router = useRouter();
   const { user, markWelcomeSeen } = useUser();
   const { stats } = useDocuments();
+  const { formattedTimeRemaining } = useDemo();
   const [showWelcome, setShowWelcome] = useState(false);
 
   useEffect(() => {
@@ -103,6 +106,17 @@ export default function RoadmapScreen() {
         contentContainerStyle={styles.content}
         showsVerticalScrollIndicator={false}
       >
+        <View style={styles.demoBanner}>
+          <View style={styles.demoBannerLeft}>
+            <Sparkles color="#FFD700" size={18} />
+            <Text style={styles.demoBannerText}>DEMO VERSION</Text>
+          </View>
+          <View style={styles.demoBannerRight}>
+            <Clock color="#FFD700" size={14} />
+            <Text style={styles.demoBannerTime}>{formattedTimeRemaining}</Text>
+          </View>
+        </View>
+
         <View style={styles.header}>
           <View style={styles.brandRow}>
             <Stethoscope color={Colors.dark.primary} size={32} />
@@ -201,6 +215,39 @@ const styles = StyleSheet.create({
   content: {
     padding: 20,
     paddingBottom: 40,
+  },
+  demoBanner: {
+    flexDirection: 'row',
+    justifyContent: 'space-between',
+    alignItems: 'center',
+    backgroundColor: 'rgba(255, 215, 0, 0.12)',
+    borderRadius: 12,
+    paddingVertical: 12,
+    paddingHorizontal: 16,
+    marginBottom: 20,
+    borderWidth: 1,
+    borderColor: 'rgba(255, 215, 0, 0.25)',
+  },
+  demoBannerLeft: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 8,
+  },
+  demoBannerText: {
+    fontSize: 13,
+    fontWeight: '700' as const,
+    color: '#FFD700',
+    letterSpacing: 1,
+  },
+  demoBannerRight: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 6,
+  },
+  demoBannerTime: {
+    fontSize: 14,
+    fontWeight: '600' as const,
+    color: '#FFD700',
   },
   header: {
     marginBottom: 24,
