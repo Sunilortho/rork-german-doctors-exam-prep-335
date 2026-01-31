@@ -1,14 +1,10 @@
 import { Tabs } from "expo-router";
 import { Map, FileText, Mic, Sparkles, User, BookOpen } from "lucide-react-native";
 import React from "react";
-import { useSafeAreaInsets } from "react-native-safe-area-context";
+import { Platform } from "react-native";
 import Colors from "@/constants/colors";
 
 export default function TabLayout() {
-  const insets = useSafeAreaInsets();
-  const bottomPadding = Math.max(insets.bottom, 8);
-  const tabBarHeight = 56 + bottomPadding;
-
   return (
     <Tabs
       screenOptions={{
@@ -19,8 +15,8 @@ export default function TabLayout() {
           borderTopColor: Colors.dark.border,
           borderTopWidth: 1,
           paddingTop: 8,
-          paddingBottom: bottomPadding,
-          height: tabBarHeight,
+          paddingBottom: Platform.OS === 'ios' ? 24 : 8,
+          height: Platform.OS === 'ios' ? 88 : 64,
         },
         tabBarLabelStyle: {
           fontSize: 11,
