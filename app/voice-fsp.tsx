@@ -36,6 +36,7 @@ import {
 import Colors from '@/constants/colors';
 import { FSPMessage, FSPSessionSettings } from '@/types';
 import { generateText } from '@rork-ai/toolkit-sdk';
+import { trpc } from '@/lib/trpc';
 import {
   VoiceProfile,
   EmotionalState,
@@ -271,6 +272,8 @@ export default function VoiceFSPScreen() {
   const recordingRef = useRef<Audio.Recording | null>(null);
   const scrollViewRef = useRef<ScrollView>(null);
   const soundRef = useRef<Audio.Sound | null>(null);
+  
+  const elevenLabsMutation = trpc.tts.speakElevenLabs.useMutation();
 
   useEffect(() => {
     checkPermissions();
@@ -458,8 +461,44 @@ export default function VoiceFSPScreen() {
     text: string,
     patientGender: 'female' | 'male'
   ) => {
-    console.log('[VoiceFSP] Using local speech for', patientGender);
-    await speakWithExpoSpeechFallback(text, patientGender);
+    try {
+      console.log('[VoiceFSP] Calling ElevenLabs TTS for', patientGender);
+      
+      const result = await elevenLabsMutation.mutateAsync({
+        text,
+        gender: patientGender,
+        voiceIndex: Math.floor(Math.random() * 3),
+      });
+      
+      console.log(`[VoiceFSP] ElevenLabs response received, voice: ${result.voice}`);
+      
+      if (soundRef.current) {
+        await soundRef.current.stopAsync();
+        await soundRef.current.unloadAsync();
+        soundRef.current = null;
+      }
+      
+      const audioUri = `data:${result.mimeType};base64,${result.audio}`;
+      
+      const { sound } = await Audio.Sound.createAsync(
+        { uri: audioUri },
+        { shouldPlay: true }
+      );
+      
+      soundRef.current = sound;
+      
+      sound.setOnPlaybackStatusUpdate((status) => {
+        if (status.isLoaded && status.didJustFinish) {
+          console.log('[VoiceFSP] ElevenLabs playback completed');
+          setIsSpeaking(false);
+          sound.unloadAsync();
+          soundRef.current = null;
+        }
+      });
+    } catch (error) {
+      console.log('[VoiceFSP] ElevenLabs TTS error, falling back to expo-speech:', error);
+      await speakWithExpoSpeechFallback(text, patientGender);
+    }
   };
 
   const speakWithExpoSpeechFallback = async (
