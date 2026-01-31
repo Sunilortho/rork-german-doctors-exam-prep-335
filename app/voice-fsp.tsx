@@ -12,7 +12,6 @@ import {
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { Audio } from 'expo-av';
 import * as Speech from 'expo-speech';
-import { trpc } from '@/lib/trpc';
 import { LinearGradient } from 'expo-linear-gradient';
 import {
   Mic,
@@ -272,8 +271,6 @@ export default function VoiceFSPScreen() {
   const recordingRef = useRef<Audio.Recording | null>(null);
   const scrollViewRef = useRef<ScrollView>(null);
   const soundRef = useRef<Audio.Sound | null>(null);
-
-  const ttsMutation = trpc.tts.speak.useMutation();
 
   useEffect(() => {
     checkPermissions();
