@@ -43,6 +43,7 @@ export const ttsRouter = createTRPCRouter({
             body: JSON.stringify({
               text: input.text,
               model_id: 'eleven_multilingual_v2',
+                              output_format: 'mp3_44100_192',
               voice_settings: {
                 stability: 0.5,
                 similarity_boost: 0.75,
