@@ -1,14 +1,13 @@
 import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
 import { Stack } from "expo-router";
 import * as SplashScreen from "expo-splash-screen";
-import React, { useEffect, useState, Component, ReactNode } from "react";
-import { View, ActivityIndicator, StyleSheet, Text, ScrollView } from "react-native";
+import React, { useEffect, Component, ReactNode } from "react";
+import { View, StyleSheet, Text, ScrollView } from "react-native";
 import { GestureHandlerRootView } from "react-native-gesture-handler";
 import { StatusBar } from "expo-status-bar";
 import { UserProvider } from "@/contexts/UserContext";
 import { DocumentsProvider } from "@/contexts/DocumentsContext";
-import { DemoProvider, useDemo } from "@/contexts/DemoContext";
-import DemoExpiredScreen from "./demo-expired";
+import { DemoProvider } from "@/contexts/DemoContext";
 import Colors from "@/constants/colors";
 import { trpc, trpcClient } from "@/lib/trpc";
 
@@ -19,34 +18,6 @@ SplashScreen.preventAutoHideAsync();
 const queryClient = new QueryClient();
 
 function DemoGate({ children }: { children: React.ReactNode }) {
-  const { isExpired, isLoading } = useDemo();
-  const [forceShow, setForceShow] = useState(false);
-
-  useEffect(() => {
-    console.log('[DemoGate] isLoading:', isLoading, 'isExpired:', isExpired);
-    
-    // Force show after 1.5 seconds if still loading
-    const timeout = setTimeout(() => {
-      console.log('[DemoGate] Force showing content after timeout');
-      setForceShow(true);
-    }, 1500);
-
-    return () => clearTimeout(timeout);
-  }, []);
-
-  if (isLoading && !forceShow) {
-    return (
-      <View style={layoutStyles.loadingContainer}>
-        <ActivityIndicator size="large" color={Colors.dark.primary} />
-        <Text style={layoutStyles.loadingText}>Loading...</Text>
-      </View>
-    );
-  }
-
-  if (isExpired && !forceShow) {
-    return <DemoExpiredScreen />;
-  }
-
   return <>{children}</>;
 }
 

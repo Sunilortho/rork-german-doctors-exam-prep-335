@@ -1,6 +1,7 @@
 import { Tabs } from "expo-router";
 import { Map, FileText, Mic, Sparkles, User, BookOpen } from "lucide-react-native";
 import React from "react";
+import { Platform } from "react-native";
 import Colors from "@/constants/colors";
 
 export default function TabLayout() {
@@ -13,7 +14,14 @@ export default function TabLayout() {
           backgroundColor: Colors.dark.surface,
           borderTopColor: Colors.dark.border,
           borderTopWidth: 1,
-          paddingTop: 4,
+          paddingTop: 8,
+          paddingBottom: Platform.OS === 'ios' ? 24 : 8,
+          height: Platform.OS === 'ios' ? 88 : 64,
+        },
+        tabBarLabelStyle: {
+          fontSize: 11,
+          fontWeight: '500' as const,
+          marginTop: 2,
         },
         headerStyle: {
           backgroundColor: Colors.dark.background,

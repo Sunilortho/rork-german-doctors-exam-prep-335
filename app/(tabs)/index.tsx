@@ -1,14 +1,15 @@
-import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect, useRef } from 'react';
 import {
   View,
   Text,
   StyleSheet,
   ScrollView,
   TouchableOpacity,
-  Dimensions,
+  Animated,
 } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { useRouter } from 'expo-router';
+import { LinearGradient } from 'expo-linear-gradient';
 import {
   Stethoscope,
   FileText,
@@ -17,33 +18,59 @@ import {
   CheckCircle2,
   Clock,
   AlertCircle,
-  Sparkles,
+  Award,
+  TrendingUp,
 } from 'lucide-react-native';
 import Colors from '@/constants/colors';
 import { useUser } from '@/contexts/UserContext';
 import { useDocuments } from '@/contexts/DocumentsContext';
-import { useDemo } from '@/contexts/DemoContext';
 import WelcomeModal from '@/components/WelcomeModal';
 
-const { width } = Dimensions.get('window');
+
 
 export default function RoadmapScreen() {
   const router = useRouter();
   const { user, markWelcomeSeen } = useUser();
   const { stats } = useDocuments();
-  const { formattedTimeRemaining } = useDemo();
   const [showWelcome, setShowWelcome] = useState(false);
+  
+  const progressAnim = useRef(new Animated.Value(0)).current;
+  const fadeAnim = useRef(new Animated.Value(0)).current;
+  const scaleAnim = useRef(new Animated.Value(0.95)).current;
 
   useEffect(() => {
     if (!user.hasSeenWelcome) {
       setShowWelcome(true);
     }
-  }, [user.hasSeenWelcome]);
+    
+    Animated.parallel([
+      Animated.timing(fadeAnim, {
+        toValue: 1,
+        duration: 600,
+        useNativeDriver: true,
+      }),
+      Animated.spring(scaleAnim, {
+        toValue: 1,
+        friction: 8,
+        tension: 40,
+        useNativeDriver: true,
+      }),
+    ]).start();
+    
+    const progress = stats.total > 0 ? (stats.completed / stats.total) : 0;
+    Animated.timing(progressAnim, {
+      toValue: progress,
+      duration: 1000,
+      useNativeDriver: false,
+    }).start();
+  }, [user.hasSeenWelcome, stats.completed, stats.total]);
 
   const handleCloseWelcome = () => {
     setShowWelcome(false);
     markWelcomeSeen();
   };
+
+  const progressPercentage = stats.total > 0 ? Math.round((stats.completed / stats.total) * 100) : 0;
 
   const roadmapSteps = [
     {
@@ -54,6 +81,7 @@ export default function RoadmapScreen() {
       status: stats.completed > 0 ? 'in_progress' : 'pending',
       progress: `${stats.completed}/${stats.total} completed`,
       route: '/documents',
+      gradient: ['#0077B6', '#00B4D8'] as const,
     },
     {
       id: 2,
@@ -63,6 +91,7 @@ export default function RoadmapScreen() {
       status: 'pending',
       progress: 'Required before FSP',
       route: '/documents',
+      gradient: ['#00B4D8', '#00D4AA'] as const,
     },
     {
       id: 3,
@@ -72,6 +101,7 @@ export default function RoadmapScreen() {
       status: 'pending',
       progress: 'Practice available',
       route: '/fsp-practice',
+      gradient: ['#00D4AA', '#27AE60'] as const,
     },
     {
       id: 4,
@@ -81,6 +111,7 @@ export default function RoadmapScreen() {
       status: 'locked',
       progress: 'After FSP completion',
       route: null,
+      gradient: ['#C5A572', '#D4B896'] as const,
     },
   ];
 
@@ -97,6 +128,11 @@ export default function RoadmapScreen() {
     }
   };
 
+  const progressWidth = progressAnim.interpolate({
+    inputRange: [0, 1],
+    outputRange: ['0%', '100%'],
+  });
+
   return (
     <SafeAreaView style={styles.container} edges={['top']}>
       <WelcomeModal visible={showWelcome} onClose={handleCloseWelcome} />
@@ -106,20 +142,24 @@ export default function RoadmapScreen() {
         contentContainerStyle={styles.content}
         showsVerticalScrollIndicator={false}
       >
-        <View style={styles.demoBanner}>
-          <View style={styles.demoBannerLeft}>
-            <Sparkles color="#FFD700" size={18} />
-            <Text style={styles.demoBannerText}>DEMO VERSION</Text>
-          </View>
-          <View style={styles.demoBannerRight}>
-            <Clock color="#FFD700" size={14} />
-            <Text style={styles.demoBannerTime}>{formattedTimeRemaining}</Text>
-          </View>
-        </View>
-
-        <View style={styles.header}>
+        <Animated.View style={[styles.header, { opacity: fadeAnim, transform: [{ scale: scaleAnim }] }]}>
+          <LinearGradient
+            colors={['rgba(0, 180, 216, 0.12)', 'rgba(0, 212, 170, 0.08)', 'transparent']}
+            style={styles.headerGradient}
+            start={{ x: 0, y: 0 }}
+            end={{ x: 1, y: 1 }}
+          />
           <View style={styles.brandRow}>
-            <Stethoscope color={Colors.dark.primary} size={32} />
+            <View style={styles.logoContainer}>
+              <LinearGradient
+                colors={[Colors.dark.primary, Colors.dark.accent]}
+                style={styles.logoGradient}
+                start={{ x: 0, y: 0 }}
+                end={{ x: 1, y: 1 }}
+              >
+                <Stethoscope color="#FFFFFF" size={28} />
+              </LinearGradient>
+            </View>
             <View style={styles.brandText}>
               <Text style={styles.appName}>Roadmap to Germany</Text>
               <Text style={styles.appNameSub}>for Doctors</Text>
@@ -128,10 +168,30 @@ export default function RoadmapScreen() {
           <Text style={styles.tagline}>
             From documents to Fachsprachprüfung — structured, examiner-ready.
           </Text>
-        </View>
+        </Animated.View>
 
-        <View style={styles.statsCard}>
-          <Text style={styles.statsTitle}>Your Progress</Text>
+        <Animated.View style={[styles.statsCard, { opacity: fadeAnim }]}>
+          <View style={styles.statsHeader}>
+            <View style={styles.statsHeaderLeft}>
+              <TrendingUp color={Colors.dark.accent} size={18} />
+              <Text style={styles.statsTitle}>Your Progress</Text>
+            </View>
+            <View style={styles.percentageBadge}>
+              <Text style={styles.percentageText}>{progressPercentage}%</Text>
+            </View>
+          </View>
+          
+          <View style={styles.progressBarContainer}>
+            <Animated.View style={[styles.progressBarFill, { width: progressWidth }]}>
+              <LinearGradient
+                colors={[Colors.dark.primary, Colors.dark.accent]}
+                style={StyleSheet.absoluteFill}
+                start={{ x: 0, y: 0 }}
+                end={{ x: 1, y: 0 }}
+              />
+            </Animated.View>
+          </View>
+          
           <View style={styles.statsRow}>
             <View style={styles.statItem}>
               <Text style={styles.statNumber}>{stats.completed}</Text>
@@ -148,9 +208,12 @@ export default function RoadmapScreen() {
               <Text style={styles.statLabel}>Remaining</Text>
             </View>
           </View>
-        </View>
+        </Animated.View>
 
-        <Text style={styles.sectionTitle}>Your Pathway</Text>
+        <View style={styles.sectionHeader}>
+          <Award color={Colors.dark.gold} size={20} />
+          <Text style={styles.sectionTitle}>Your Pathway</Text>
+        </View>
 
         {roadmapSteps.map((step, index) => (
           <TouchableOpacity
@@ -163,8 +226,18 @@ export default function RoadmapScreen() {
             disabled={step.status === 'locked'}
             activeOpacity={0.7}
           >
-            <View style={styles.stepNumber}>
-              <Text style={styles.stepNumberText}>{step.id}</Text>
+            <View style={styles.stepNumberContainer}>
+              <LinearGradient
+                colors={step.status === 'locked' ? ['#3A4A5A', '#2A3A4A'] : step.gradient}
+                style={styles.stepNumber}
+                start={{ x: 0, y: 0 }}
+                end={{ x: 1, y: 1 }}
+              >
+                <Text style={styles.stepNumberText}>{step.id}</Text>
+              </LinearGradient>
+              {index < roadmapSteps.length - 1 && (
+                <View style={styles.stepConnector} />
+              )}
             </View>
 
             <View style={styles.stepContent}>
@@ -183,22 +256,28 @@ export default function RoadmapScreen() {
             </View>
 
             {step.route && (
-              <ChevronRight color={Colors.dark.textMuted} size={24} />
-            )}
-
-            {index < roadmapSteps.length - 1 && (
-              <View style={styles.stepConnector} />
+              <View style={styles.chevronContainer}>
+                <ChevronRight color={Colors.dark.textMuted} size={22} />
+              </View>
             )}
           </TouchableOpacity>
         ))}
 
         <View style={styles.tipCard}>
+          <LinearGradient
+            colors={['rgba(197, 165, 114, 0.15)', 'rgba(197, 165, 114, 0.05)']}
+            style={StyleSheet.absoluteFill}
+            start={{ x: 0, y: 0 }}
+            end={{ x: 1, y: 1 }}
+          />
           <Text style={styles.tipTitle}>💡 Pro Tip</Text>
           <Text style={styles.tipText}>
             Start with document preparation while practicing for FSP. 
             Many doctors underestimate the time needed for translations and apostilles.
           </Text>
         </View>
+        
+        <View style={styles.bottomSpacing} />
       </ScrollView>
     </SafeAreaView>
   );
@@ -216,49 +295,34 @@ const styles = StyleSheet.create({
     padding: 20,
     paddingBottom: 40,
   },
-  demoBanner: {
-    flexDirection: 'row',
-    justifyContent: 'space-between',
-    alignItems: 'center',
-    backgroundColor: 'rgba(255, 215, 0, 0.12)',
-    borderRadius: 12,
-    paddingVertical: 12,
-    paddingHorizontal: 16,
-    marginBottom: 20,
-    borderWidth: 1,
-    borderColor: 'rgba(255, 215, 0, 0.25)',
-  },
-  demoBannerLeft: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    gap: 8,
-  },
-  demoBannerText: {
-    fontSize: 13,
-    fontWeight: '700' as const,
-    color: '#FFD700',
-    letterSpacing: 1,
-  },
-  demoBannerRight: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    gap: 6,
-  },
-  demoBannerTime: {
-    fontSize: 14,
-    fontWeight: '600' as const,
-    color: '#FFD700',
-  },
   header: {
     marginBottom: 24,
+    position: 'relative',
+    padding: 20,
+    borderRadius: 20,
+    overflow: 'hidden',
+  },
+  headerGradient: {
+    ...StyleSheet.absoluteFillObject,
+    borderRadius: 20,
+  },
+  logoContainer: {
+    marginRight: 14,
+  },
+  logoGradient: {
+    width: 52,
+    height: 52,
+    borderRadius: 16,
+    justifyContent: 'center',
+    alignItems: 'center',
   },
   brandRow: {
     flexDirection: 'row',
     alignItems: 'center',
-    marginBottom: 12,
+    marginBottom: 14,
   },
   brandText: {
-    marginLeft: 12,
+    flex: 1,
   },
   appName: {
     fontSize: 24,
@@ -278,19 +342,50 @@ const styles = StyleSheet.create({
   },
   statsCard: {
     backgroundColor: Colors.dark.surface,
-    borderRadius: 16,
+    borderRadius: 20,
     padding: 20,
     marginBottom: 24,
     borderWidth: 1,
     borderColor: Colors.dark.border,
   },
-  statsTitle: {
-    fontSize: 14,
-    fontWeight: '600',
-    color: Colors.dark.textSecondary,
+  statsHeader: {
+    flexDirection: 'row',
+    justifyContent: 'space-between',
+    alignItems: 'center',
     marginBottom: 16,
-    textTransform: 'uppercase',
-    letterSpacing: 0.5,
+  },
+  statsHeaderLeft: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 8,
+  },
+  statsTitle: {
+    fontSize: 15,
+    fontWeight: '600',
+    color: Colors.dark.text,
+  },
+  percentageBadge: {
+    backgroundColor: Colors.dark.accent + '20',
+    paddingHorizontal: 12,
+    paddingVertical: 6,
+    borderRadius: 20,
+  },
+  percentageText: {
+    fontSize: 14,
+    fontWeight: '700',
+    color: Colors.dark.accent,
+  },
+  progressBarContainer: {
+    height: 8,
+    backgroundColor: Colors.dark.surfaceLight,
+    borderRadius: 4,
+    marginBottom: 20,
+    overflow: 'hidden',
+  },
+  progressBarFill: {
+    height: '100%',
+    borderRadius: 4,
+    overflow: 'hidden',
   },
   statsRow: {
     flexDirection: 'row',
@@ -301,9 +396,9 @@ const styles = StyleSheet.create({
     alignItems: 'center',
   },
   statNumber: {
-    fontSize: 32,
+    fontSize: 28,
     fontWeight: '700',
-    color: Colors.dark.primary,
+    color: Colors.dark.text,
   },
   statLabel: {
     fontSize: 12,
@@ -315,39 +410,45 @@ const styles = StyleSheet.create({
     height: 40,
     backgroundColor: Colors.dark.border,
   },
+  sectionHeader: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 10,
+    marginBottom: 16,
+  },
   sectionTitle: {
     fontSize: 18,
     fontWeight: '600',
     color: Colors.dark.text,
-    marginBottom: 16,
   },
   stepCard: {
     backgroundColor: Colors.dark.surface,
     borderRadius: 16,
     padding: 16,
-    marginBottom: 12,
+    marginBottom: 16,
     flexDirection: 'row',
-    alignItems: 'center',
+    alignItems: 'flex-start',
     borderWidth: 1,
     borderColor: Colors.dark.border,
-    position: 'relative',
   },
   stepCardLocked: {
-    opacity: 0.5,
+    opacity: 0.6,
+  },
+  stepNumberContainer: {
+    alignItems: 'center',
+    marginRight: 14,
   },
   stepNumber: {
-    width: 32,
-    height: 32,
-    borderRadius: 16,
-    backgroundColor: Colors.dark.surfaceLight,
+    width: 36,
+    height: 36,
+    borderRadius: 12,
     justifyContent: 'center',
     alignItems: 'center',
-    marginRight: 12,
   },
   stepNumberText: {
-    fontSize: 14,
+    fontSize: 15,
     fontWeight: '700',
-    color: Colors.dark.primary,
+    color: '#FFFFFF',
   },
   stepContent: {
     flex: 1,
@@ -378,20 +479,30 @@ const styles = StyleSheet.create({
     marginLeft: 6,
   },
   stepConnector: {
-    position: 'absolute',
-    left: 35,
-    bottom: -12,
     width: 2,
-    height: 12,
+    height: 20,
     backgroundColor: Colors.dark.border,
+    marginTop: 8,
+  },
+  chevronContainer: {
+    width: 36,
+    height: 36,
+    borderRadius: 18,
+    backgroundColor: Colors.dark.surfaceLight,
+    justifyContent: 'center',
+    alignItems: 'center',
   },
   tipCard: {
-    backgroundColor: Colors.dark.surfaceLight,
-    borderRadius: 12,
-    padding: 16,
+    borderRadius: 16,
+    padding: 18,
     marginTop: 12,
-    borderLeftWidth: 3,
+    borderLeftWidth: 4,
     borderLeftColor: Colors.dark.gold,
+    overflow: 'hidden',
+    position: 'relative',
+  },
+  bottomSpacing: {
+    height: 20,
   },
   tipTitle: {
     fontSize: 14,

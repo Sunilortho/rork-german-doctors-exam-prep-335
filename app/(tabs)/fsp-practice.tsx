@@ -1,38 +1,52 @@
-import React from 'react';
+import React, { useRef, useEffect } from 'react';
 import {
   View,
   Text,
   StyleSheet,
   ScrollView,
   TouchableOpacity,
+  Animated,
 } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { useRouter } from 'expo-router';
+import { LinearGradient } from 'expo-linear-gradient';
 import {
   Mic,
   MessageSquare,
   FileText,
   ChevronRight,
-  Lock,
   Lightbulb,
   BookOpen,
   Shuffle,
   Sparkles,
   Volume2,
   Mail,
+  Zap,
 } from 'lucide-react-native';
 import Colors from '@/constants/colors';
-import { useUser } from '@/contexts/UserContext';
 
 export default function FSPPracticeScreen() {
   const router = useRouter();
-  const { user, canAccess } = useUser();
+  
+  const fadeAnim = useRef(new Animated.Value(0)).current;
+  const slideAnim = useRef(new Animated.Value(20)).current;
+  
+  useEffect(() => {
+    Animated.parallel([
+      Animated.timing(fadeAnim, {
+        toValue: 1,
+        duration: 500,
+        useNativeDriver: true,
+      }),
+      Animated.timing(slideAnim, {
+        toValue: 0,
+        duration: 500,
+        useNativeDriver: true,
+      }),
+    ]).start();
+  }, []);
 
   const handleVoiceFSP = () => {
-    if (!canAccess('pro')) {
-      router.push('/upgrade');
-      return;
-    }
     router.push('/voice-fsp');
   };
 
@@ -59,48 +73,61 @@ export default function FSPPracticeScreen() {
           </Text>
         </View>
 
-        <TouchableOpacity
-          style={[styles.primaryCard, !canAccess('pro') && styles.lockedCard]}
-          onPress={handleVoiceFSP}
-          activeOpacity={0.8}
-        >
-          <View style={styles.cardIconContainer}>
-            <Mic color={Colors.dark.primary} size={32} />
-          </View>
-          <View style={styles.cardContent}>
-            <View style={styles.cardTitleRow}>
-              <Text style={styles.cardEmoji}>🎙</Text>
-              <Text style={styles.cardTitle}>Voice-based FSP Simulation</Text>
+        <Animated.View style={{ opacity: fadeAnim, transform: [{ translateY: slideAnim }] }}>
+          <TouchableOpacity
+            style={styles.primaryCard}
+            onPress={handleVoiceFSP}
+            activeOpacity={0.8}
+          >
+            <LinearGradient
+              colors={['rgba(0, 180, 216, 0.15)', 'rgba(0, 212, 170, 0.08)']}
+              style={StyleSheet.absoluteFill}
+              start={{ x: 0, y: 0 }}
+              end={{ x: 1, y: 1 }}
+            />
+            <View style={styles.cardIconContainer}>
+              <LinearGradient
+                colors={[Colors.dark.primary, Colors.dark.accent]}
+                style={styles.iconGradient}
+                start={{ x: 0, y: 0 }}
+                end={{ x: 1, y: 1 }}
+              >
+                <Mic color="#FFFFFF" size={28} />
+              </LinearGradient>
             </View>
-            <Text style={styles.cardDescription}>
-              Speak like in the real exam: anamnesis, patient explanation, and Arztbrief dictation.
-            </Text>
-            <View style={styles.featureList}>
-              <View style={styles.featureRow}>
-                <Volume2 color={Colors.dark.accent} size={14} />
-                <Text style={styles.featureItem}>High-quality natural voices</Text>
+            <View style={styles.cardContent}>
+              <View style={styles.cardTitleRow}>
+                <Zap color={Colors.dark.primary} size={18} />
+                <Text style={styles.cardTitle}>Voice-based FSP Simulation</Text>
               </View>
-              <View style={styles.featureRow}>
-                <Shuffle color={Colors.dark.accent} size={14} />
-                <Text style={styles.featureItem}>Choose cases or random mode</Text>
+              <Text style={styles.cardDescription}>
+                Speak like in the real exam: anamnesis, patient explanation, and Arztbrief dictation.
+              </Text>
+              <View style={styles.featureList}>
+                <View style={styles.featureRow}>
+                  <Volume2 color={Colors.dark.accent} size={14} />
+                  <Text style={styles.featureItem}>High-quality natural voices</Text>
+                </View>
+                <View style={styles.featureRow}>
+                  <Shuffle color={Colors.dark.accent} size={14} />
+                  <Text style={styles.featureItem}>Choose cases or random mode</Text>
+                </View>
+                <View style={styles.featureRow}>
+                  <Sparkles color={Colors.dark.accent} size={14} />
+                  <Text style={styles.featureItem}>Real-time pronunciation hints</Text>
+                </View>
+                <View style={styles.featureRow}>
+                  <Lightbulb color={Colors.dark.accent} size={14} />
+                  <Text style={styles.featureItem}>AI feedback on articulation</Text>
+                </View>
               </View>
-              <View style={styles.featureRow}>
-                <Sparkles color={Colors.dark.accent} size={14} />
-                <Text style={styles.featureItem}>Real-time pronunciation hints</Text>
-              </View>
-              <View style={styles.featureRow}>
-                <Lightbulb color={Colors.dark.accent} size={14} />
-                <Text style={styles.featureItem}>AI feedback on articulation</Text>
+              <View style={styles.recommendedBadge}>
+                <Sparkles color={Colors.dark.accent} size={12} />
+                <Text style={styles.recommendedText}>Recommended</Text>
               </View>
             </View>
-            {!canAccess('pro') && (
-              <View style={styles.lockBadge}>
-                <Lock color={Colors.dark.gold} size={14} />
-                <Text style={styles.lockText}>Pro Feature</Text>
-              </View>
-            )}
-          </View>
-        </TouchableOpacity>
+          </TouchableOpacity>
+        </Animated.View>
 
         <TouchableOpacity
           style={styles.secondaryCard}
@@ -227,24 +254,23 @@ const styles = StyleSheet.create({
   },
   primaryCard: {
     backgroundColor: Colors.dark.surface,
-    borderRadius: 16,
+    borderRadius: 20,
     padding: 20,
     marginBottom: 16,
     borderWidth: 2,
     borderColor: Colors.dark.primary,
     flexDirection: 'row',
-  },
-  lockedCard: {
-    borderColor: Colors.dark.border,
+    overflow: 'hidden',
   },
   cardIconContainer: {
-    width: 64,
-    height: 64,
-    borderRadius: 32,
-    backgroundColor: 'rgba(0, 180, 216, 0.15)',
+    marginRight: 16,
+  },
+  iconGradient: {
+    width: 60,
+    height: 60,
+    borderRadius: 16,
     justifyContent: 'center',
     alignItems: 'center',
-    marginRight: 16,
   },
   cardContent: {
     flex: 1,
@@ -277,24 +303,24 @@ const styles = StyleSheet.create({
     color: Colors.dark.textSecondary,
     marginBottom: 4,
   },
-  lockBadge: {
+  recommendedBadge: {
     flexDirection: 'row',
     alignItems: 'center',
-    backgroundColor: 'rgba(197, 165, 114, 0.15)',
-    paddingHorizontal: 10,
+    backgroundColor: Colors.dark.accent + '20',
+    paddingHorizontal: 12,
     paddingVertical: 6,
-    borderRadius: 12,
+    borderRadius: 20,
     alignSelf: 'flex-start',
+    gap: 6,
   },
-  lockText: {
+  recommendedText: {
     fontSize: 12,
     fontWeight: '600',
-    color: Colors.dark.gold,
-    marginLeft: 6,
+    color: Colors.dark.accent,
   },
   secondaryCard: {
     backgroundColor: Colors.dark.surface,
-    borderRadius: 16,
+    borderRadius: 20,
     padding: 20,
     marginBottom: 16,
     borderWidth: 1,
@@ -322,11 +348,11 @@ const styles = StyleSheet.create({
   },
   tipCard: {
     backgroundColor: 'rgba(197, 165, 114, 0.1)',
-    borderRadius: 12,
-    padding: 16,
+    borderRadius: 16,
+    padding: 18,
     marginBottom: 24,
     flexDirection: 'row',
-    borderLeftWidth: 3,
+    borderLeftWidth: 4,
     borderLeftColor: Colors.dark.gold,
   },
   tipEmoji: {
@@ -350,8 +376,8 @@ const styles = StyleSheet.create({
   },
   arztbriefCard: {
     backgroundColor: Colors.dark.surface,
-    borderRadius: 16,
-    padding: 16,
+    borderRadius: 20,
+    padding: 18,
     flexDirection: 'row',
     alignItems: 'center',
     borderWidth: 1,
@@ -403,8 +429,8 @@ const styles = StyleSheet.create({
   },
   resourceCard: {
     backgroundColor: Colors.dark.surface,
-    borderRadius: 16,
-    padding: 16,
+    borderRadius: 20,
+    padding: 18,
     flexDirection: 'row',
     borderWidth: 1,
     borderColor: Colors.dark.border,
@@ -447,8 +473,8 @@ const styles = StyleSheet.create({
   },
   resourceRequestCard: {
     backgroundColor: Colors.dark.surface,
-    borderRadius: 16,
-    padding: 16,
+    borderRadius: 20,
+    padding: 18,
     flexDirection: 'row',
     borderWidth: 1,
     borderColor: Colors.dark.gold + '40',
