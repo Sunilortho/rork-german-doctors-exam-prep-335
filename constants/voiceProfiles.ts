@@ -23,16 +23,16 @@ export interface SpeechModifiers {
 }
 
 export const VOICE_PROFILES: VoiceProfile[] = [
-  // Female voices - using 'nova' for warm, clearly feminine voice
+  // Female voices - 'shimmer' is the most naturally feminine voice
   {
     id: 'female_young',
     name: 'Anna',
     gender: 'female',
     age: 'young',
-    openAiVoice: 'nova',
+    openAiVoice: 'shimmer',
     pitch: 1.0,
     rate: 1.0,
-    description: 'Young woman, warm expressive voice',
+    description: 'Young woman, bright feminine voice',
   },
   {
     id: 'female_middle',
@@ -41,29 +41,29 @@ export const VOICE_PROFILES: VoiceProfile[] = [
     age: 'middle',
     openAiVoice: 'nova',
     pitch: 1.0,
-    rate: 0.98,
-    description: 'Middle-aged woman, warm conversational voice',
+    rate: 1.0,
+    description: 'Middle-aged woman, warm feminine voice',
   },
   {
     id: 'female_elderly',
     name: 'Helga',
     gender: 'female',
     age: 'elderly',
-    openAiVoice: 'nova',
+    openAiVoice: 'shimmer',
     pitch: 1.0,
     rate: 0.95,
-    description: 'Elderly woman, gentle caring voice',
+    description: 'Elderly woman, gentle feminine voice',
   },
-  // Male voices - using 'onyx' for deep, authoritative masculine voice
+  // Male voices - 'echo' for younger, 'onyx' for deep masculine
   {
     id: 'male_young',
     name: 'Markus',
     gender: 'male',
     age: 'young',
-    openAiVoice: 'onyx',
+    openAiVoice: 'echo',
     pitch: 1.0,
     rate: 1.0,
-    description: 'Young man, deep confident voice',
+    description: 'Young man, clear masculine voice',
   },
   {
     id: 'male_middle',
@@ -72,8 +72,8 @@ export const VOICE_PROFILES: VoiceProfile[] = [
     age: 'middle',
     openAiVoice: 'onyx',
     pitch: 1.0,
-    rate: 0.98,
-    description: 'Middle-aged man, deep authoritative voice',
+    rate: 1.0,
+    description: 'Middle-aged man, deep masculine voice',
   },
   {
     id: 'male_elderly',
@@ -82,8 +82,8 @@ export const VOICE_PROFILES: VoiceProfile[] = [
     age: 'elderly',
     openAiVoice: 'onyx',
     pitch: 1.0,
-    rate: 0.95,
-    description: 'Elderly man, deep measured voice',
+    rate: 0.92,
+    description: 'Elderly man, deep authoritative voice',
   },
 ];
 

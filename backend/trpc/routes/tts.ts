@@ -21,7 +21,7 @@ export const ttsRouter = createTRPCRouter({
         console.log(`[TTS] Generating speech with voice: ${input.voice}, text length: ${input.text.length}`);
         
         const response = await openai.audio.speech.create({
-          model: "tts-1",
+          model: "tts-1-hd",
           voice: input.voice,
           input: input.text,
           speed: input.speed,
