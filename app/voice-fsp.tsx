@@ -11,7 +11,7 @@ import {
 } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { Audio } from 'expo-av';
-import * as Speech from 'expo-speech';
+
 import { LinearGradient } from 'expo-linear-gradient';
 import {
   Mic,
@@ -281,7 +281,6 @@ export default function VoiceFSPScreen() {
       if (recordingRef.current) {
         recordingRef.current.stopAndUnloadAsync();
       }
-      Speech.stop();
       if (soundRef.current) {
         soundRef.current.stopAsync();
         soundRef.current.unloadAsync();
@@ -498,54 +497,16 @@ export default function VoiceFSPScreen() {
     } catch (error) {
       console.log('[VoiceFSP] ElevenLabs TTS error:', error);
       
-      if (Platform.OS === 'web') {
-        console.log('[VoiceFSP] Web platform - no fallback, ElevenLabs required');
-        setIsSpeaking(false);
-        Alert.alert(
-          'Sprachausgabe fehlgeschlagen',
-          'Die hochwertige Sprachausgabe konnte nicht geladen werden. Bitte überprüfen Sie Ihre Internetverbindung.',
-          [{ text: 'OK' }]
-        );
-        return;
-      }
-      
-      await speakWithExpoSpeechFallback(text, patientGender);
+      console.log('[VoiceFSP] ElevenLabs required - no fallback');
+      setIsSpeaking(false);
+      Alert.alert(
+        'Sprachausgabe fehlgeschlagen',
+        'Die hochwertige Sprachausgabe konnte nicht geladen werden. Bitte überprüfen Sie Ihre Internetverbindung.',
+        [{ text: 'OK' }]
+      );
     }
   };
 
-  const speakWithExpoSpeechFallback = async (
-    text: string,
-    patientGender: 'female' | 'male'
-  ) => {
-    try {
-      await Speech.stop();
-      
-      const finalPitch = patientGender === 'female' ? 1.3 : 0.55;
-      const finalRate = patientGender === 'female' ? 1.0 : 0.88;
-      
-      console.log('[VoiceFSP] Fallback expo-speech for', patientGender);
-      
-      await Speech.speak(text, {
-        language: 'de-DE',
-        pitch: finalPitch,
-        rate: finalRate,
-        onDone: () => {
-          console.log('[VoiceFSP] Fallback speech completed');
-          setIsSpeaking(false);
-        },
-        onError: (error) => {
-          console.log('[VoiceFSP] Fallback speech error:', error);
-          setIsSpeaking(false);
-        },
-        onStopped: () => {
-          setIsSpeaking(false);
-        },
-      });
-    } catch (error) {
-      console.log('[VoiceFSP] Fallback speech error:', error);
-      setIsSpeaking(false);
-    }
-  };
 
   const speakText = async (text: string) => {
     await speakTextEnhanced(text, currentVoice, currentEmotionalState, currentScenario.gender);
@@ -765,7 +726,6 @@ export default function VoiceFSPScreen() {
   const resetSession = async () => {
     setMessages([]);
     setShowSettings(true);
-    Speech.stop();
     if (soundRef.current) {
       await soundRef.current.stopAsync();
       await soundRef.current.unloadAsync();
