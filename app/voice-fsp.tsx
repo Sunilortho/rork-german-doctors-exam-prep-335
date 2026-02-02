@@ -496,7 +496,19 @@ export default function VoiceFSPScreen() {
         }
       });
     } catch (error) {
-      console.log('[VoiceFSP] ElevenLabs TTS error, falling back to expo-speech:', error);
+      console.log('[VoiceFSP] ElevenLabs TTS error:', error);
+      
+      if (Platform.OS === 'web') {
+        console.log('[VoiceFSP] Web platform - no fallback, ElevenLabs required');
+        setIsSpeaking(false);
+        Alert.alert(
+          'Sprachausgabe fehlgeschlagen',
+          'Die hochwertige Sprachausgabe konnte nicht geladen werden. Bitte überprüfen Sie Ihre Internetverbindung.',
+          [{ text: 'OK' }]
+        );
+        return;
+      }
+      
       await speakWithExpoSpeechFallback(text, patientGender);
     }
   };
