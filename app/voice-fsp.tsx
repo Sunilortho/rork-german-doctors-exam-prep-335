@@ -515,6 +515,7 @@ export default function VoiceFSPScreen() {
 
   const getErrorMessage = (errorCode: string): string => {
     const errorMessages: Record<string, string> = {
+      'TRPC_ENDPOINT_UNREACHABLE': 'Der Server ist nicht erreichbar. Bitte versuchen Sie es in einigen Sekunden erneut.',
       'ELEVENLABS_API_KEY_NOT_CONFIGURED': 'Der ElevenLabs API-Schlüssel ist nicht konfiguriert. Bitte kontaktieren Sie den Support.',
       'ELEVENLABS_API_KEY_INVALID': 'Der ElevenLabs API-Schlüssel ist ungültig.',
       'ELEVENLABS_UNAUTHORIZED': 'Ungültiger API-Schlüssel (401). Bitte überprüfen Sie die Konfiguration.',
