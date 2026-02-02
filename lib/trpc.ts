@@ -18,25 +18,52 @@ const getBaseUrl = () => {
 };
 
 const customFetch = async (url: RequestInfo | URL, options?: RequestInit): Promise<Response> => {
-  const response = await fetch(url, options);
+  let response: Response;
+  
+  try {
+    response = await fetch(url, options);
+  } catch (fetchError: any) {
+    console.error('[TRPC] Network fetch error:', fetchError?.message);
+    throw new Error('TRPC_NETWORK_ERROR');
+  }
   
   const contentType = response.headers.get('content-type') || '';
   
-  if (!response.ok || !contentType.includes('application/json')) {
-    const text = await response.text();
+  if (!contentType.includes('application/json')) {
+    let text = '';
+    try {
+      text = await response.text();
+    } catch {
+      text = '';
+    }
+    
+    console.error('[TRPC] Non-JSON response. URL:', url);
+    console.error('[TRPC] Status:', response.status, 'Content-Type:', contentType);
+    console.error('[TRPC] Body preview:', text.substring(0, 200));
     
     if (text.trim().startsWith('<') || text.includes('<!DOCTYPE')) {
-      console.error('[TRPC] Received HTML instead of JSON. URL:', url);
-      console.error('[TRPC] Status:', response.status);
-      console.error('[TRPC] This usually means the API endpoint is incorrect or the backend is not deployed.');
-      
       throw new Error('TRPC_ENDPOINT_UNREACHABLE');
     }
     
-    return new Response(text, {
-      status: response.status,
-      statusText: response.statusText,
-      headers: response.headers,
+    if (text.startsWith('Not Found') || text.startsWith('Null') || text.startsWith('null')) {
+      throw new Error('TRPC_ENDPOINT_NOT_FOUND');
+    }
+    
+    if (!response.ok) {
+      throw new Error(`TRPC_ERROR_${response.status}`);
+    }
+    
+    const jsonError = {
+      error: {
+        message: 'TRPC_INVALID_RESPONSE',
+        code: 'INTERNAL_SERVER_ERROR',
+        data: { httpStatus: response.status, text: text.substring(0, 100) }
+      }
+    };
+    
+    return new Response(JSON.stringify(jsonError), {
+      status: 500,
+      headers: { 'content-type': 'application/json' },
     });
   }
   
