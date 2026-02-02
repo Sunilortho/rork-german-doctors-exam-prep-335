@@ -11,7 +11,7 @@ import {
 } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { Audio } from 'expo-av';
-
+import * as Speech from 'expo-speech';
 import { LinearGradient } from 'expo-linear-gradient';
 import {
   Mic,
@@ -281,6 +281,7 @@ export default function VoiceFSPScreen() {
       if (recordingRef.current) {
         recordingRef.current.stopAndUnloadAsync();
       }
+      Speech.stop();
       if (soundRef.current) {
         soundRef.current.stopAsync();
         soundRef.current.unloadAsync();
@@ -469,11 +470,7 @@ export default function VoiceFSPScreen() {
         voiceIndex: Math.floor(Math.random() * 3),
       });
       
-      if (!result || !result.audio) {
-        throw new Error('ELEVENLABS_EMPTY_RESPONSE');
-      }
-      
-      console.log(`[VoiceFSP] ElevenLabs response: voice=${result.voice}, model=${result.model}, format=${result.format}`);
+      console.log(`[VoiceFSP] ElevenLabs response received, voice: ${result.voice}`);
       
       if (soundRef.current) {
         await soundRef.current.stopAsync();
@@ -498,70 +495,45 @@ export default function VoiceFSPScreen() {
           soundRef.current = null;
         }
       });
-    } catch (error: any) {
-      console.error('[VoiceFSP] TTS Error:', error);
+    } catch (error) {
+      console.log('[VoiceFSP] ElevenLabs TTS error, falling back to expo-speech:', error);
+      await speakWithExpoSpeechFallback(text, patientGender);
+    }
+  };
+
+  const speakWithExpoSpeechFallback = async (
+    text: string,
+    patientGender: 'female' | 'male'
+  ) => {
+    try {
+      await Speech.stop();
+      
+      const finalPitch = patientGender === 'female' ? 1.3 : 0.55;
+      const finalRate = patientGender === 'female' ? 1.0 : 0.88;
+      
+      console.log('[VoiceFSP] Fallback expo-speech for', patientGender);
+      
+      await Speech.speak(text, {
+        language: 'de-DE',
+        pitch: finalPitch,
+        rate: finalRate,
+        onDone: () => {
+          console.log('[VoiceFSP] Fallback speech completed');
+          setIsSpeaking(false);
+        },
+        onError: (error) => {
+          console.log('[VoiceFSP] Fallback speech error:', error);
+          setIsSpeaking(false);
+        },
+        onStopped: () => {
+          setIsSpeaking(false);
+        },
+      });
+    } catch (error) {
+      console.log('[VoiceFSP] Fallback speech error:', error);
       setIsSpeaking(false);
-      
-      const errorCode = error?.message || error?.data?.message || '';
-      const userMessage = getErrorMessage(errorCode);
-      
-      Alert.alert(
-        'Sprachausgabe Fehler',
-        userMessage,
-        [{ text: 'OK' }]
-      );
     }
   };
-
-  const getErrorMessage = (errorCode: string): string => {
-    const errorMessages: Record<string, string> = {
-      'TRPC_ENDPOINT_UNREACHABLE': 'Der Server ist nicht erreichbar. Bitte versuchen Sie es in einigen Sekunden erneut.',
-      'TRPC_ENDPOINT_NOT_FOUND': 'Der API-Endpunkt wurde nicht gefunden. Bitte versuchen Sie es später erneut.',
-      'TRPC_NETWORK_ERROR': 'Netzwerkfehler. Bitte überprüfen Sie Ihre Internetverbindung.',
-      'TRPC_INVALID_RESPONSE': 'Ungültige Server-Antwort. Bitte versuchen Sie es erneut.',
-      'ELEVENLABS_API_KEY_NOT_CONFIGURED': 'Der ElevenLabs API-Schlüssel ist nicht konfiguriert. Bitte kontaktieren Sie den Support.',
-      'ELEVENLABS_API_KEY_INVALID': 'Der ElevenLabs API-Schlüssel ist ungültig.',
-      'ELEVENLABS_UNAUTHORIZED': 'Ungültiger API-Schlüssel (401). Bitte überprüfen Sie die Konfiguration.',
-      'ELEVENLABS_FORBIDDEN': 'Zugriff auf ElevenLabs verweigert (403).',
-      'ELEVENLABS_RATE_LIMITED': 'Zu viele Anfragen. Bitte warten Sie einen Moment und versuchen Sie es erneut.',
-      'ELEVENLABS_QUOTA_EXCEEDED': 'Das ElevenLabs-Kontingent ist erschöpft. Bitte versuchen Sie es später erneut.',
-      'ELEVENLABS_BAD_REQUEST': 'Ungültige Anfrage an ElevenLabs.',
-      'ELEVENLABS_NETWORK_ERROR': 'Netzwerkfehler. Bitte überprüfen Sie Ihre Internetverbindung.',
-      'ELEVENLABS_HTML_RESPONSE': 'Server-Fehler. Der Dienst ist vorübergehend nicht verfügbar.',
-      'ELEVENLABS_INVALID_CONTENT_TYPE': 'Ungültige Server-Antwort. Bitte versuchen Sie es erneut.',
-      'ELEVENLABS_BUFFER_ERROR': 'Fehler beim Laden der Audio-Daten.',
-      'ELEVENLABS_AUDIO_TOO_SMALL': 'Die generierte Audiodatei ist ungültig.',
-      'ELEVENLABS_EMPTY_RESPONSE': 'Keine Audiodaten vom Server erhalten.',
-    };
-    
-    const lowerErrorCode = errorCode.toLowerCase();
-    
-    for (const [code, message] of Object.entries(errorMessages)) {
-      if (errorCode.includes(code)) {
-        return message;
-      }
-    }
-    
-    if (errorCode.includes('ELEVENLABS_ERROR_')) {
-      const statusCode = errorCode.replace('ELEVENLABS_ERROR_', '');
-      return `ElevenLabs Server-Fehler (${statusCode}). Bitte versuchen Sie es später erneut.`;
-    }
-    
-    if (lowerErrorCode.includes('unexpected character: <') || lowerErrorCode.includes('unexpected token <')) {
-      return 'Der Server ist vorübergehend nicht erreichbar. Bitte versuchen Sie es in einigen Sekunden erneut.';
-    }
-    
-    if (lowerErrorCode.includes('json') && (lowerErrorCode.includes('parse') || lowerErrorCode.includes('unexpected'))) {
-      return 'Server-Kommunikationsfehler. Bitte versuchen Sie es erneut.';
-    }
-    
-    if (lowerErrorCode.includes('fetch') || lowerErrorCode.includes('network') || lowerErrorCode.includes('trpc')) {
-      return 'Server nicht erreichbar. Bitte überprüfen Sie Ihre Internetverbindung.';
-    }
-    
-    return `Sprachausgabe fehlgeschlagen. Bitte versuchen Sie es erneut.\n\n(${errorCode.substring(0, 80)})`;
-  };
-
 
   const speakText = async (text: string) => {
     await speakTextEnhanced(text, currentVoice, currentEmotionalState, currentScenario.gender);
@@ -781,6 +753,7 @@ export default function VoiceFSPScreen() {
   const resetSession = async () => {
     setMessages([]);
     setShowSettings(true);
+    Speech.stop();
     if (soundRef.current) {
       await soundRef.current.stopAsync();
       await soundRef.current.unloadAsync();
