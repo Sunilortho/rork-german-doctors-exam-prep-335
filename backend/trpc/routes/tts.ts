@@ -25,61 +25,64 @@ export const ttsRouter = createTRPCRouter({
       })
     )
     .mutation(async ({ input }) => {
-      try {
-        const apiKey = process.env.ELEVENLABS_API_KEY;
-        
-        if (!apiKey) {
-          console.error('[ElevenLabs TTS] ELEVENLABS_API_KEY is not configured');
-          throw new Error('ElevenLabs API key is not configured');
-        }
-        
-        const voices = ELEVENLABS_VOICES[input.gender];
-        const voice = voices[input.voiceIndex % voices.length];
-        
-        console.log(`[ElevenLabs TTS] Generating speech with voice: ${voice.name} (${input.gender}), text length: ${input.text.length}`);
-        console.log(`[ElevenLabs TTS] API key present: ${apiKey.length > 0 ? 'yes (' + apiKey.substring(0, 4) + '...)' : 'no'}`);
-        
-        const response = await fetch(
-          `https://api.elevenlabs.io/v1/text-to-speech/${voice.id}?output_format=mp3_44100_128`,
-          {
-            method: 'POST',
-            headers: {
-              'Accept': 'audio/mpeg',
-              'Content-Type': 'application/json',
-              'xi-api-key': apiKey,
-            },
-            body: JSON.stringify({
-              text: input.text,
-              model_id: 'eleven_multilingual_v2',
-              voice_settings: {
-                stability: 0.5,
-                similarity_boost: 0.75,
-                style: 0.0,
-                use_speaker_boost: true,
-              },
-            }),
-          }
-        );
-
-        if (!response.ok) {
-          const errorText = await response.text();
-          console.error('[ElevenLabs TTS] API error:', response.status, errorText);
-          throw new Error(`ElevenLabs API error: ${response.status}`);
-        }
-
-        const arrayBuffer = await response.arrayBuffer();
-        const base64Audio = Buffer.from(arrayBuffer).toString("base64");
-
-        console.log(`[ElevenLabs TTS] Generated audio with ${voice.name}, size: ${base64Audio.length} bytes`);
-
-        return {
-          audio: base64Audio,
-          mimeType: "audio/mpeg",
-          voice: voice.name,
-        };
-      } catch (error) {
-        console.error("[ElevenLabs TTS] Error generating speech:", error);
-        throw new Error("Failed to generate speech with ElevenLabs");
+      const apiKey = process.env.ELEVENLABS_API_KEY;
+      
+      console.log('[ElevenLabs TTS] Starting TTS request');
+      console.log('[ElevenLabs TTS] API key status:', apiKey ? `present (${apiKey.length} chars, starts with ${apiKey.substring(0, 4)})` : 'MISSING');
+      
+      if (!apiKey || apiKey.trim() === '') {
+        console.error('[ElevenLabs TTS] ELEVENLABS_API_KEY is not configured or empty');
+        throw new Error('ElevenLabs API key is not configured');
       }
+      
+      const voices = ELEVENLABS_VOICES[input.gender];
+      const voice = voices[input.voiceIndex % voices.length];
+      
+      console.log(`[ElevenLabs TTS] Using voice: ${voice.name} (${voice.id}), gender: ${input.gender}`);
+      console.log(`[ElevenLabs TTS] Text length: ${input.text.length} chars`);
+      
+      const url = `https://api.elevenlabs.io/v1/text-to-speech/${voice.id}?output_format=mp3_44100_128`;
+      
+      const requestBody = {
+        text: input.text,
+        model_id: 'eleven_multilingual_v2',
+        voice_settings: {
+          stability: 0.5,
+          similarity_boost: 0.75,
+          style: 0.0,
+          use_speaker_boost: true,
+        },
+      };
+      
+      console.log('[ElevenLabs TTS] Calling API:', url);
+      
+      const response = await fetch(url, {
+        method: 'POST',
+        headers: {
+          'Accept': 'audio/mpeg',
+          'Content-Type': 'application/json',
+          'xi-api-key': apiKey.trim(),
+        },
+        body: JSON.stringify(requestBody),
+      });
+
+      console.log('[ElevenLabs TTS] Response status:', response.status);
+
+      if (!response.ok) {
+        const errorText = await response.text();
+        console.error('[ElevenLabs TTS] API error response:', response.status, errorText);
+        throw new Error(`ElevenLabs API error: ${response.status} - ${errorText}`);
+      }
+
+      const arrayBuffer = await response.arrayBuffer();
+      const base64Audio = Buffer.from(arrayBuffer).toString("base64");
+
+      console.log(`[ElevenLabs TTS] Success! Generated audio with ${voice.name}, size: ${base64Audio.length} bytes`);
+
+      return {
+        audio: base64Audio,
+        mimeType: "audio/mpeg",
+        voice: voice.name,
+      };
     }),
 });

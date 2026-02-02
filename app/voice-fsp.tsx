@@ -496,22 +496,31 @@ export default function VoiceFSPScreen() {
       });
     } catch (error: any) {
       console.log('[VoiceFSP] ElevenLabs TTS error:', error);
-      console.log('[VoiceFSP] Error details:', error?.message || 'Unknown error');
+      console.log('[VoiceFSP] Error message:', error?.message || 'Unknown error');
+      console.log('[VoiceFSP] Full error:', JSON.stringify(error, null, 2));
       
       setIsSpeaking(false);
       
-      const errorMessage = error?.message || '';
-      let userMessage = 'Die hochwertige Sprachausgabe konnte nicht geladen werden. Bitte überprüfen Sie Ihre Internetverbindung.';
+      const errorMessage = error?.message || error?.data?.message || '';
+      let userMessage = 'Die Sprachausgabe konnte nicht geladen werden.';
       
-      if (errorMessage.includes('API key')) {
-        userMessage = 'Der ElevenLabs API-Schlüssel ist nicht konfiguriert. Bitte kontaktieren Sie den Administrator.';
-      } else if (errorMessage.includes('401') || errorMessage.includes('403')) {
-        userMessage = 'Authentifizierungsfehler bei ElevenLabs. Der API-Schlüssel ist möglicherweise ungültig.';
+      if (errorMessage.includes('API key') || errorMessage.includes('not configured')) {
+        userMessage = 'Der ElevenLabs API-Schlüssel ist nicht konfiguriert.';
+      } else if (errorMessage.includes('401')) {
+        userMessage = 'Ungültiger API-Schlüssel (401).';
+      } else if (errorMessage.includes('403')) {
+        userMessage = 'Zugriff verweigert (403).';
+      } else if (errorMessage.includes('429')) {
+        userMessage = 'Zu viele Anfragen. Bitte warten Sie einen Moment.';
+      } else if (errorMessage.includes('quota') || errorMessage.includes('limit')) {
+        userMessage = 'ElevenLabs Kontingent erschöpft.';
+      } else if (errorMessage.includes('TRPC') || errorMessage.includes('fetch')) {
+        userMessage = 'Server nicht erreichbar. Bitte prüfen Sie Ihre Verbindung.';
       }
       
       Alert.alert(
-        'Sprachausgabe fehlgeschlagen',
-        userMessage,
+        'Sprachausgabe Fehler',
+        `${userMessage}\n\nDetails: ${errorMessage.substring(0, 100)}`,
         [{ text: 'OK' }]
       );
     }
