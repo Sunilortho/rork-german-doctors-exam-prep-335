@@ -530,6 +530,8 @@ export default function VoiceFSPScreen() {
       'ELEVENLABS_EMPTY_RESPONSE': 'Keine Audiodaten vom Server erhalten.',
     };
     
+    const lowerErrorCode = errorCode.toLowerCase();
+    
     for (const [code, message] of Object.entries(errorMessages)) {
       if (errorCode.includes(code)) {
         return message;
@@ -541,12 +543,16 @@ export default function VoiceFSPScreen() {
       return `ElevenLabs Server-Fehler (${statusCode}). Bitte versuchen Sie es später erneut.`;
     }
     
-    if (errorCode.includes('fetch') || errorCode.includes('network') || errorCode.includes('TRPC')) {
-      return 'Server nicht erreichbar. Bitte überprüfen Sie Ihre Internetverbindung.';
+    if (lowerErrorCode.includes('unexpected character: <') || lowerErrorCode.includes('unexpected token <')) {
+      return 'Der Server ist vorübergehend nicht erreichbar. Bitte versuchen Sie es in einigen Sekunden erneut.';
     }
     
-    if (errorCode.includes('JSON') || errorCode.includes('parse') || errorCode.includes('unexpected')) {
-      return 'Ungültige Server-Antwort. Der Dienst ist vorübergehend nicht verfügbar.';
+    if (lowerErrorCode.includes('json') && (lowerErrorCode.includes('parse') || lowerErrorCode.includes('unexpected'))) {
+      return 'Server-Kommunikationsfehler. Bitte versuchen Sie es erneut.';
+    }
+    
+    if (lowerErrorCode.includes('fetch') || lowerErrorCode.includes('network') || lowerErrorCode.includes('trpc')) {
+      return 'Server nicht erreichbar. Bitte überprüfen Sie Ihre Internetverbindung.';
     }
     
     return `Sprachausgabe fehlgeschlagen. Bitte versuchen Sie es erneut.\n\n(${errorCode.substring(0, 80)})`;
