@@ -469,7 +469,11 @@ export default function VoiceFSPScreen() {
         voiceIndex: Math.floor(Math.random() * 3),
       });
       
-      console.log(`[VoiceFSP] ElevenLabs response received, voice: ${result.voice}`);
+      if (!result || !result.audio) {
+        throw new Error('ELEVENLABS_EMPTY_RESPONSE');
+      }
+      
+      console.log(`[VoiceFSP] ElevenLabs response: voice=${result.voice}, model=${result.model}, format=${result.format}`);
       
       if (soundRef.current) {
         await soundRef.current.stopAsync();
@@ -495,35 +499,57 @@ export default function VoiceFSPScreen() {
         }
       });
     } catch (error: any) {
-      console.log('[VoiceFSP] ElevenLabs TTS error:', error);
-      console.log('[VoiceFSP] Error message:', error?.message || 'Unknown error');
-      console.log('[VoiceFSP] Full error:', JSON.stringify(error, null, 2));
-      
+      console.error('[VoiceFSP] TTS Error:', error);
       setIsSpeaking(false);
       
-      const errorMessage = error?.message || error?.data?.message || '';
-      let userMessage = 'Die Sprachausgabe konnte nicht geladen werden.';
-      
-      if (errorMessage.includes('API key') || errorMessage.includes('not configured')) {
-        userMessage = 'Der ElevenLabs API-Schlüssel ist nicht konfiguriert.';
-      } else if (errorMessage.includes('401')) {
-        userMessage = 'Ungültiger API-Schlüssel (401).';
-      } else if (errorMessage.includes('403')) {
-        userMessage = 'Zugriff verweigert (403).';
-      } else if (errorMessage.includes('429')) {
-        userMessage = 'Zu viele Anfragen. Bitte warten Sie einen Moment.';
-      } else if (errorMessage.includes('quota') || errorMessage.includes('limit')) {
-        userMessage = 'ElevenLabs Kontingent erschöpft.';
-      } else if (errorMessage.includes('TRPC') || errorMessage.includes('fetch')) {
-        userMessage = 'Server nicht erreichbar. Bitte prüfen Sie Ihre Verbindung.';
-      }
+      const errorCode = error?.message || error?.data?.message || '';
+      const userMessage = getErrorMessage(errorCode);
       
       Alert.alert(
         'Sprachausgabe Fehler',
-        `${userMessage}\n\nDetails: ${errorMessage.substring(0, 100)}`,
+        userMessage,
         [{ text: 'OK' }]
       );
     }
+  };
+
+  const getErrorMessage = (errorCode: string): string => {
+    const errorMessages: Record<string, string> = {
+      'ELEVENLABS_API_KEY_NOT_CONFIGURED': 'Der ElevenLabs API-Schlüssel ist nicht konfiguriert. Bitte kontaktieren Sie den Support.',
+      'ELEVENLABS_API_KEY_INVALID': 'Der ElevenLabs API-Schlüssel ist ungültig.',
+      'ELEVENLABS_UNAUTHORIZED': 'Ungültiger API-Schlüssel (401). Bitte überprüfen Sie die Konfiguration.',
+      'ELEVENLABS_FORBIDDEN': 'Zugriff auf ElevenLabs verweigert (403).',
+      'ELEVENLABS_RATE_LIMITED': 'Zu viele Anfragen. Bitte warten Sie einen Moment und versuchen Sie es erneut.',
+      'ELEVENLABS_QUOTA_EXCEEDED': 'Das ElevenLabs-Kontingent ist erschöpft. Bitte versuchen Sie es später erneut.',
+      'ELEVENLABS_BAD_REQUEST': 'Ungültige Anfrage an ElevenLabs.',
+      'ELEVENLABS_NETWORK_ERROR': 'Netzwerkfehler. Bitte überprüfen Sie Ihre Internetverbindung.',
+      'ELEVENLABS_HTML_RESPONSE': 'Server-Fehler. Der Dienst ist vorübergehend nicht verfügbar.',
+      'ELEVENLABS_INVALID_CONTENT_TYPE': 'Ungültige Server-Antwort. Bitte versuchen Sie es erneut.',
+      'ELEVENLABS_BUFFER_ERROR': 'Fehler beim Laden der Audio-Daten.',
+      'ELEVENLABS_AUDIO_TOO_SMALL': 'Die generierte Audiodatei ist ungültig.',
+      'ELEVENLABS_EMPTY_RESPONSE': 'Keine Audiodaten vom Server erhalten.',
+    };
+    
+    for (const [code, message] of Object.entries(errorMessages)) {
+      if (errorCode.includes(code)) {
+        return message;
+      }
+    }
+    
+    if (errorCode.includes('ELEVENLABS_ERROR_')) {
+      const statusCode = errorCode.replace('ELEVENLABS_ERROR_', '');
+      return `ElevenLabs Server-Fehler (${statusCode}). Bitte versuchen Sie es später erneut.`;
+    }
+    
+    if (errorCode.includes('fetch') || errorCode.includes('network') || errorCode.includes('TRPC')) {
+      return 'Server nicht erreichbar. Bitte überprüfen Sie Ihre Internetverbindung.';
+    }
+    
+    if (errorCode.includes('JSON') || errorCode.includes('parse') || errorCode.includes('unexpected')) {
+      return 'Ungültige Server-Antwort. Der Dienst ist vorübergehend nicht verfügbar.';
+    }
+    
+    return `Sprachausgabe fehlgeschlagen. Bitte versuchen Sie es erneut.\n\n(${errorCode.substring(0, 80)})`;
   };
 
 
