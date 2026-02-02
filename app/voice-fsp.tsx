@@ -494,14 +494,24 @@ export default function VoiceFSPScreen() {
           soundRef.current = null;
         }
       });
-    } catch (error) {
+    } catch (error: any) {
       console.log('[VoiceFSP] ElevenLabs TTS error:', error);
+      console.log('[VoiceFSP] Error details:', error?.message || 'Unknown error');
       
-      console.log('[VoiceFSP] ElevenLabs required - no fallback');
       setIsSpeaking(false);
+      
+      const errorMessage = error?.message || '';
+      let userMessage = 'Die hochwertige Sprachausgabe konnte nicht geladen werden. Bitte überprüfen Sie Ihre Internetverbindung.';
+      
+      if (errorMessage.includes('API key')) {
+        userMessage = 'Der ElevenLabs API-Schlüssel ist nicht konfiguriert. Bitte kontaktieren Sie den Administrator.';
+      } else if (errorMessage.includes('401') || errorMessage.includes('403')) {
+        userMessage = 'Authentifizierungsfehler bei ElevenLabs. Der API-Schlüssel ist möglicherweise ungültig.';
+      }
+      
       Alert.alert(
         'Sprachausgabe fehlgeschlagen',
-        'Die hochwertige Sprachausgabe konnte nicht geladen werden. Bitte überprüfen Sie Ihre Internetverbindung.',
+        userMessage,
         [{ text: 'OK' }]
       );
     }

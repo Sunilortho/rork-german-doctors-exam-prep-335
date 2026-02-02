@@ -26,10 +26,18 @@ export const ttsRouter = createTRPCRouter({
     )
     .mutation(async ({ input }) => {
       try {
+        const apiKey = process.env.ELEVENLABS_API_KEY;
+        
+        if (!apiKey) {
+          console.error('[ElevenLabs TTS] ELEVENLABS_API_KEY is not configured');
+          throw new Error('ElevenLabs API key is not configured');
+        }
+        
         const voices = ELEVENLABS_VOICES[input.gender];
         const voice = voices[input.voiceIndex % voices.length];
         
         console.log(`[ElevenLabs TTS] Generating speech with voice: ${voice.name} (${input.gender}), text length: ${input.text.length}`);
+        console.log(`[ElevenLabs TTS] API key present: ${apiKey.length > 0 ? 'yes (' + apiKey.substring(0, 4) + '...)' : 'no'}`);
         
         const response = await fetch(
           `https://api.elevenlabs.io/v1/text-to-speech/${voice.id}?output_format=mp3_44100_128`,
@@ -38,7 +46,7 @@ export const ttsRouter = createTRPCRouter({
             headers: {
               'Accept': 'audio/mpeg',
               'Content-Type': 'application/json',
-              'xi-api-key': process.env.ELEVENLABS_API_KEY || '',
+              'xi-api-key': apiKey,
             },
             body: JSON.stringify({
               text: input.text,
