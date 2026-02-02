@@ -67,14 +67,40 @@ export const ttsRouter = createTRPCRouter({
       });
 
       console.log('[ElevenLabs TTS] Response status:', response.status);
+      console.log('[ElevenLabs TTS] Response content-type:', response.headers.get('content-type'));
 
       if (!response.ok) {
         const errorText = await response.text();
         console.error('[ElevenLabs TTS] API error response:', response.status, errorText);
-        throw new Error(`ElevenLabs API error: ${response.status} - ${errorText}`);
+        
+        let errorMessage = `ElevenLabs API error: ${response.status}`;
+        try {
+          const errorJson = JSON.parse(errorText);
+          errorMessage = errorJson.detail?.message || errorJson.message || errorMessage;
+        } catch {
+          if (errorText.includes('<')) {
+            errorMessage = `ElevenLabs returned HTML error (status ${response.status}). Check API key and quota.`;
+          } else {
+            errorMessage = errorText.substring(0, 200);
+          }
+        }
+        throw new Error(errorMessage);
+      }
+
+      const contentType = response.headers.get('content-type') || '';
+      if (!contentType.includes('audio')) {
+        const text = await response.text();
+        console.error('[ElevenLabs TTS] Unexpected content type:', contentType, text.substring(0, 200));
+        throw new Error(`ElevenLabs returned non-audio response: ${contentType}`);
       }
 
       const arrayBuffer = await response.arrayBuffer();
+      
+      if (arrayBuffer.byteLength < 1000) {
+        console.error('[ElevenLabs TTS] Response too small:', arrayBuffer.byteLength);
+        throw new Error('ElevenLabs returned invalid audio (too small)');
+      }
+      
       const base64Audio = Buffer.from(arrayBuffer).toString("base64");
 
       console.log(`[ElevenLabs TTS] Success! Generated audio with ${voice.name}, size: ${base64Audio.length} bytes`);
