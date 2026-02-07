@@ -32,11 +32,15 @@ import {
   Bone,
   Activity,
   Eye,
+  Lock,
+  Crown,
 } from 'lucide-react-native';
 import Colors from '@/constants/colors';
 import { FSPMessage, FSPSessionSettings } from '@/types';
 import { generateText } from '@rork-ai/toolkit-sdk';
 import { trpc } from '@/lib/trpc';
+import { useUser } from '@/contexts/UserContext';
+import { useRouter } from 'expo-router';
 import {
   VoiceProfile,
   EmotionalState,
@@ -177,6 +181,10 @@ const PATIENT_SCENARIOS: PatientScenario[] = [
   { id: 'm_derm_2', name: 'Herr Kunz', gender: 'male', age: 'elderly', greeting: 'Grüß Gott, Kunz mein Name.', complaint: 'Ich habe eine Wunde am Bein, die seit Wochen nicht heilt.', history: 'Diabetes seit 20 Jahren, Durchblutungsstörungen, Raucher.', category: 'Dermatologie' },
 ];
 
+const FREE_FEMALE_IDS = ['f_neuro_1', 'f_kardio_1'];
+const FREE_MALE_IDS = ['m_kardio_1', 'm_ortho_1'];
+const FREE_CASE_IDS = new Set([...FREE_FEMALE_IDS, ...FREE_MALE_IDS]);
+
 const CATEGORY_ICONS: Record<string, any> = {
   'Neurologie': Brain,
   'Kardiologie': Heart,
@@ -245,6 +253,10 @@ interface PronunciationHint {
   type: 'clarity' | 'grammar' | 'vocabulary' | 'structure';
 }
 
+function isFreeCaseId(id: string): boolean {
+  return FREE_CASE_IDS.has(id);
+}
+
 export default function VoiceFSPScreen() {
   const [messages, setMessages] = useState<FSPMessage[]>([]);
   const [isRecording, setIsRecording] = useState(false);
@@ -268,6 +280,9 @@ export default function VoiceFSPScreen() {
   const [hintAnimation] = useState(new Animated.Value(0));
   const [pulseAnimation] = useState(new Animated.Value(1));
   const [genderFilter, setGenderFilter] = useState<'all' | 'female' | 'male'>('all');
+  const { canAccess } = useUser();
+  const router = useRouter();
+  const isPro = canAccess('pro');
   
   const recordingRef = useRef<Audio.Recording | null>(null);
   const scrollViewRef = useRef<ScrollView>(null);
@@ -399,21 +414,29 @@ export default function VoiceFSPScreen() {
   }, [messages]);
 
   const getFilteredScenarios = () => {
-    if (genderFilter === 'all') return PATIENT_SCENARIOS;
-    return PATIENT_SCENARIOS.filter(s => s.gender === genderFilter);
+    let scenarios = PATIENT_SCENARIOS;
+    if (genderFilter !== 'all') {
+      scenarios = scenarios.filter(s => s.gender === genderFilter);
+    }
+    return scenarios;
+  };
+
+  const getAccessibleScenarios = () => {
+    if (isPro) return getFilteredScenarios();
+    return getFilteredScenarios().filter(s => isFreeCaseId(s.id));
   };
 
   const startSession = () => {
     setShowSettings(false);
     setPronunciationHint(null);
     
-    const filteredScenarios = getFilteredScenarios();
+    const accessibleScenarios = getAccessibleScenarios();
     let scenario: PatientScenario;
     
     if (randomMode || !selectedScenarioId) {
-      scenario = filteredScenarios[Math.floor(Math.random() * filteredScenarios.length)];
+      scenario = accessibleScenarios[Math.floor(Math.random() * accessibleScenarios.length)];
     } else {
-      scenario = PATIENT_SCENARIOS.find(s => s.id === selectedScenarioId) || filteredScenarios[0];
+      scenario = PATIENT_SCENARIOS.find(s => s.id === selectedScenarioId) || accessibleScenarios[0];
     }
     
     const voice = getVoiceByCharacteristics(scenario.gender, scenario.age);
@@ -897,6 +920,18 @@ export default function VoiceFSPScreen() {
                         selectedScenarioId === scenario.id && styles.caseItemSelected,
                       ]}
                       onPress={() => {
+                        const locked = !isPro && !isFreeCaseId(scenario.id);
+                        if (locked) {
+                          Alert.alert(
+                            'Pro Feature',
+                            'Upgrade to Pro (€9.99) to unlock all patient cases.',
+                            [
+                              { text: 'Later', style: 'cancel' },
+                              { text: 'Upgrade', onPress: () => router.push('/upgrade') },
+                            ]
+                          );
+                          return;
+                        }
                         setSelectedScenarioId(scenario.id);
                         setShowCaseSelector(false);
                       }}
@@ -904,12 +939,28 @@ export default function VoiceFSPScreen() {
                       <View style={styles.caseItemLeft}>
                         <View style={[
                           styles.caseAvatar,
-                          scenario.gender === 'male' ? styles.caseAvatarMale : styles.caseAvatarFemale
+                          scenario.gender === 'male' ? styles.caseAvatarMale : styles.caseAvatarFemale,
+                          !isPro && !isFreeCaseId(scenario.id) && styles.caseAvatarLocked,
                         ]}>
-                          <User color="#fff" size={16} />
+                          {!isPro && !isFreeCaseId(scenario.id) ? (
+                            <Lock color="#fff" size={14} />
+                          ) : (
+                            <User color="#fff" size={16} />
+                          )}
                         </View>
                         <View style={styles.caseItemContent}>
-                          <Text style={styles.caseItemName}>{scenario.name}</Text>
+                          <View style={{ flexDirection: 'row', alignItems: 'center', gap: 6 }}>
+                            <Text style={[
+                              styles.caseItemName,
+                              !isPro && !isFreeCaseId(scenario.id) && { color: Colors.dark.textMuted },
+                            ]}>{scenario.name}</Text>
+                            {!isPro && !isFreeCaseId(scenario.id) && (
+                              <View style={styles.proBadge}>
+                                <Crown color={Colors.dark.gold} size={10} />
+                                <Text style={styles.proBadgeText}>PRO</Text>
+                              </View>
+                            )}
+                          </View>
                           <Text style={styles.caseItemComplaint} numberOfLines={1}>
                             {scenario.complaint.substring(0, 45)}...
                           </Text>
@@ -1358,6 +1409,25 @@ const styles = StyleSheet.create({
   },
   caseAvatarMale: {
     backgroundColor: '#2196F3',
+  },
+  caseAvatarLocked: {
+    backgroundColor: Colors.dark.textMuted,
+    opacity: 0.6,
+  },
+  proBadge: {
+    flexDirection: 'row' as const,
+    alignItems: 'center' as const,
+    gap: 3,
+    backgroundColor: 'rgba(197, 165, 114, 0.2)',
+    paddingHorizontal: 6,
+    paddingVertical: 2,
+    borderRadius: 6,
+  },
+  proBadgeText: {
+    fontSize: 9,
+    fontWeight: '700' as const,
+    color: Colors.dark.gold,
+    letterSpacing: 0.5,
   },
   caseItemContent: {
     flex: 1,
