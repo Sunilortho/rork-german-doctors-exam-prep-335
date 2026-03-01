@@ -78,6 +78,34 @@ function RootLayoutNav() {
           headerShown: false,
         }}
       />
+      <Stack.Screen
+        name="notifications"
+        options={{
+          title: 'Notifications',
+          headerStyle: { backgroundColor: Colors.dark.surface },
+        }}
+      />
+      <Stack.Screen
+        name="settings"
+        options={{
+          title: 'Settings',
+          headerStyle: { backgroundColor: Colors.dark.surface },
+        }}
+      />
+      <Stack.Screen
+        name="help-faq"
+        options={{
+          title: 'Help & FAQ',
+          headerStyle: { backgroundColor: Colors.dark.surface },
+        }}
+      />
+      <Stack.Screen
+        name="terms-privacy"
+        options={{
+          title: 'Terms & Privacy',
+          headerStyle: { backgroundColor: Colors.dark.surface },
+        }}
+      />
     </Stack>
   );
 }

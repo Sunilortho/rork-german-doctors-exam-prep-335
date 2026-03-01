@@ -62,25 +62,25 @@ export default function ProfileScreen() {
       id: 'notifications',
       title: 'Notifications',
       icon: Bell,
-      onPress: () => {},
+      onPress: () => router.push('/notifications'),
     },
     {
       id: 'settings',
       title: 'Settings',
       icon: Settings,
-      onPress: () => {},
+      onPress: () => router.push('/settings'),
     },
     {
       id: 'help',
       title: 'Help & FAQ',
       icon: HelpCircle,
-      onPress: () => {},
+      onPress: () => router.push('/help-faq'),
     },
     {
       id: 'terms',
       title: 'Terms & Privacy',
       icon: FileText,
-      onPress: () => {},
+      onPress: () => router.push('/terms-privacy'),
     },
   ];
 
