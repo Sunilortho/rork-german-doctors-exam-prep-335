@@ -24,9 +24,9 @@ export const ttsRouter = createTRPCRouter({
         voiceIndex: z.number().min(0).max(2).optional().default(0),
       })
     )
-    .mutation(async ({ input }) => {
+    .mutation(async ({ input }: { input: { text: string; gender: 'female' | 'male'; voiceIndex: number } }) => {
       try {
-        const voices = ELEVENLABS_VOICES[input.gender];
+        const voices = ELEVENLABS_VOICES[input.gender as keyof typeof ELEVENLABS_VOICES];
         const voice = voices[input.voiceIndex % voices.length];
         
         console.log(`[ElevenLabs TTS] Generating speech with voice: ${voice.name} (${input.gender}), text length: ${input.text.length}`);

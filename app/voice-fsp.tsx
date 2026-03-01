@@ -510,7 +510,7 @@ export default function VoiceFSPScreen() {
       
       soundRef.current = sound;
       
-      sound.setOnPlaybackStatusUpdate((status) => {
+      sound.setOnPlaybackStatusUpdate((status: import('expo-av').AVPlaybackStatus) => {
         if (status.isLoaded && status.didJustFinish) {
           console.log('[VoiceFSP] ElevenLabs playback completed');
           setIsSpeaking(false);
@@ -544,7 +544,7 @@ export default function VoiceFSPScreen() {
           console.log('[VoiceFSP] Fallback speech completed');
           setIsSpeaking(false);
         },
-        onError: (error) => {
+        onError: (error: Error) => {
           console.log('[VoiceFSP] Fallback speech error:', error);
           setIsSpeaking(false);
         },
