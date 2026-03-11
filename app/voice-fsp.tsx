@@ -510,23 +510,40 @@ export default function VoiceFSPScreen() {
           webAudioRef.current = null;
         }
         
-        const audio = new Audio(audioUri);
+        console.log('[VoiceFSP] Creating web Audio with data URI, length:', audioUri.length);
+        
+        const audio = new Audio();
         webAudioRef.current = audio;
         
-        return new Promise<void>((resolve, reject) => {
-          audio.onended = () => {
-            console.log('[VoiceFSP] ElevenLabs web playback completed');
-            setIsSpeaking(false);
-            webAudioRef.current = null;
-            resolve();
-          };
-          audio.onerror = (e) => {
-            console.log('[VoiceFSP] ElevenLabs web playback error:', e);
-            setIsSpeaking(false);
-            reject(e);
-          };
-          audio.play().catch(reject);
-        });
+        // Set up error handler first
+        audio.onerror = () => {
+          console.log('[VoiceFSP] Web audio error:', audio.error);
+        };
+        
+        // Load the audio
+        audio.src = audioUri;
+        audio.load();
+        
+        // Play and wait
+        try {
+          await audio.play();
+          console.log('[VoiceFSP] Web audio started playing');
+          
+          // Wait for playback to finish
+          await new Promise<void>((resolve) => {
+            audio.onended = () => {
+              console.log('[VoiceFSP] ElevenLabs web playback completed');
+              setIsSpeaking(false);
+              webAudioRef.current = null;
+              resolve();
+            };
+          });
+        } catch (playError) {
+          console.log('[VoiceFSP] Web audio play error:', playError);
+          throw playError; // Re-throw to trigger fallback
+        }
+        
+        return;
       }
       
       // Native: Use expo-av as before
