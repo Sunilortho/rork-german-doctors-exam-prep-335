@@ -492,10 +492,11 @@ export default function VoiceFSPScreen() {
     try {
       console.log('[VoiceFSP] Calling ElevenLabs TTS for', patientGender);
       
+      // Use consistent voice (index 0) to avoid tone changes between messages
       const result = await elevenLabsMutation.mutateAsync({
         text,
         gender: patientGender,
-        voiceIndex: Math.floor(Math.random() * 3),
+        voiceIndex: 0,
       });
       
       console.log(`[VoiceFSP] ElevenLabs response received, voice: ${result.voice}`);
