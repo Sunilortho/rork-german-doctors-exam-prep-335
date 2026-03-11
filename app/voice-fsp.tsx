@@ -287,6 +287,7 @@ export default function VoiceFSPScreen() {
   const recordingRef = useRef<Audio.Recording | null>(null);
   const scrollViewRef = useRef<ScrollView>(null);
   const soundRef = useRef<Audio.Sound | null>(null);
+  const webAudioRef = useRef<HTMLAudioElement | null>(null);
   
   const elevenLabsMutation = trpc.tts.speakElevenLabs.useMutation();
 
@@ -300,6 +301,10 @@ export default function VoiceFSPScreen() {
       if (soundRef.current) {
         soundRef.current.stopAsync();
         soundRef.current.unloadAsync();
+      }
+      if (webAudioRef.current) {
+        webAudioRef.current.pause();
+        webAudioRef.current = null;
       }
     };
   }, []);
@@ -495,13 +500,41 @@ export default function VoiceFSPScreen() {
       
       console.log(`[VoiceFSP] ElevenLabs response received, voice: ${result.voice}`);
       
+      const audioUri = `data:${result.mimeType};base64,${result.audio}`;
+      
+      // Web: Use HTML5 Audio for better compatibility
+      if (Platform.OS === 'web') {
+        // Cleanup any existing web audio
+        if (webAudioRef.current) {
+          webAudioRef.current.pause();
+          webAudioRef.current = null;
+        }
+        
+        const audio = new Audio(audioUri);
+        webAudioRef.current = audio;
+        
+        return new Promise<void>((resolve, reject) => {
+          audio.onended = () => {
+            console.log('[VoiceFSP] ElevenLabs web playback completed');
+            setIsSpeaking(false);
+            webAudioRef.current = null;
+            resolve();
+          };
+          audio.onerror = (e) => {
+            console.log('[VoiceFSP] ElevenLabs web playback error:', e);
+            setIsSpeaking(false);
+            reject(e);
+          };
+          audio.play().catch(reject);
+        });
+      }
+      
+      // Native: Use expo-av as before
       if (soundRef.current) {
         await soundRef.current.stopAsync();
         await soundRef.current.unloadAsync();
         soundRef.current = null;
       }
-      
-      const audioUri = `data:${result.mimeType};base64,${result.audio}`;
       
       const { sound } = await Audio.Sound.createAsync(
         { uri: audioUri },
@@ -512,7 +545,7 @@ export default function VoiceFSPScreen() {
       
       sound.setOnPlaybackStatusUpdate((status: import('expo-av').AVPlaybackStatus) => {
         if (status.isLoaded && status.didJustFinish) {
-          console.log('[VoiceFSP] ElevenLabs playback completed');
+          console.log('[VoiceFSP] ElevenLabs native playback completed');
           setIsSpeaking(false);
           sound.unloadAsync();
           soundRef.current = null;
