@@ -513,11 +513,12 @@ export default function VoiceFSPScreen() {
         console.log('[VoiceFSP] Creating web Audio with data URI, length:', audioUri.length);
         
         const audio = new Audio();
+        audio.preload = 'auto';
         webAudioRef.current = audio;
         
         // Set up error handler first
         audio.onerror = () => {
-          console.log('[VoiceFSP] Web audio error:', audio.error);
+          console.log('[VoiceFSP] Web audio error:', audio.error, 'message:', audio.error?.message);
         };
         
         // Load the audio
@@ -526,7 +527,10 @@ export default function VoiceFSPScreen() {
         
         // Play and wait
         try {
-          await audio.play();
+          const playPromise = audio.play();
+          if (playPromise !== undefined) {
+            await playPromise;
+          }
           console.log('[VoiceFSP] Web audio started playing');
           
           // Wait for playback to finish
