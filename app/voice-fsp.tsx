@@ -297,6 +297,9 @@ export default function VoiceFSPScreen() {
   const [voiceEvents, setVoiceEvents] = useState<VoiceEvent[]>([]);
   const addVoiceEvent = (e: VoiceEvent) => setVoiceEvents(prev => [...prev.slice(-30), e]);
 
+  // Quality mode: 'fast' | 'balanced' | 'quality' — default BALANCED
+  const [voiceQualityMode, setVoiceQualityMode] = useState<'fast' | 'balanced' | 'quality'>('balanced');
+
   const elevenLabsMutation = trpc.tts.speakElevenLabs.useMutation();
 
   useEffect(() => {
@@ -491,7 +494,11 @@ export default function VoiceFSPScreen() {
         text: ttsText,
         gender: patientGender,
         voiceIndex: 0,
-        elevenLabsCaller: (params) => elevenLabsMutation.mutateAsync(params),
+        mode: voiceQualityMode,
+        elevenLabsCaller: (params) => elevenLabsMutation.mutateAsync({
+          ...params,
+          isWeb: Platform.OS === 'web',
+        }),
         onEvent: addVoiceEvent,
       });
     } catch (err) {
@@ -1028,6 +1035,27 @@ export default function VoiceFSPScreen() {
         >
           <Volume2 color={isSpeaking ? '#fff' : Colors.dark.textSecondary} size={20} />
         </TouchableOpacity>
+      </View>
+
+      {/* Quality mode toggle — visible to user */}
+      <View style={styles.qualityModeRow}>
+        {(['fast', 'balanced', 'quality'] as const).map((m) => (
+          <TouchableOpacity
+            key={m}
+            style={[
+              styles.qualityModeBtn,
+              voiceQualityMode === m && styles.qualityModeBtnActive,
+            ]}
+            onPress={() => setVoiceQualityMode(m)}
+          >
+            <Text style={[
+              styles.qualityModeBtnText,
+              voiceQualityMode === m && styles.qualityModeBtnTextActive,
+            ]}>
+              {m === 'fast' ? '⚡ Fast' : m === 'balanced' ? '⚖ Balanced' : '✦ Quality'}
+            </Text>
+          </TouchableOpacity>
+        ))}
       </View>
 
       <ScrollView
@@ -1716,5 +1744,38 @@ const styles = StyleSheet.create({
     fontSize: 14,
     color: Colors.dark.text,
     lineHeight: 20,
+  },
+  qualityModeRow: {
+    flexDirection: 'row',
+    justifyContent: 'center',
+    alignItems: 'center',
+    gap: 6,
+    paddingHorizontal: 16,
+    paddingVertical: 6,
+    backgroundColor: 'rgba(255,255,255,0.03)',
+    borderBottomWidth: 1,
+    borderBottomColor: 'rgba(255,255,255,0.06)',
+  },
+  qualityModeBtn: {
+    flex: 1,
+    paddingVertical: 5,
+    paddingHorizontal: 8,
+    borderRadius: 8,
+    borderWidth: 1,
+    borderColor: 'rgba(255,255,255,0.12)',
+    alignItems: 'center',
+  },
+  qualityModeBtnActive: {
+    backgroundColor: 'rgba(0, 180, 216, 0.18)',
+    borderColor: Colors.dark.primary,
+  },
+  qualityModeBtnText: {
+    fontSize: 11,
+    color: Colors.dark.textMuted,
+    fontWeight: '500',
+  },
+  qualityModeBtnTextActive: {
+    color: Colors.dark.primary,
+    fontWeight: '700',
   },
 });

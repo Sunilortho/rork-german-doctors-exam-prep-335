@@ -1,18 +1,21 @@
 /**
  * providerManager.ts
  * ─────────────────────────────────────────────────────────────────────────────
- * Production-grade voice provider manager.
+ * Quality Recovery Pass — provider manager with mode support.
  *
- * Responsibilities
- *  • Primary provider = ElevenLabs (when API key is present and healthy)
- *  • Fallback = expo-speech (always available, no network)
- *  • Explicit timeout thresholds with AbortController
- *  • Retry policy (1 retry on transient errors, no retry on 4xx)
- *  • Failure reason classification
- *  • Observable analytics / debug events via onEvent callback
- *  • No silent downgrade — every fallback is logged
- *  • Turn ownership: only the latest turn may play; stale turns are cancelled
- *  • No duplicate playback
+ * Changes from previous latency pass:
+ *  - Passes `mode` and `isWeb` to ElevenLabs caller so backend selects the
+ *    correct model/format/bitrate per platform.
+ *  - Web audio path: waits for `canplaythrough` before playing (prevents
+ *    choppy playback caused by starting before buffer is ready).
+ *  - expo-speech fallback: pitch/rate tuned per gender for more natural sound.
+ *  - VoiceEvent extended with outputFormat, bitrateLabel, sampleRate, mode.
+ *  - Default mode: 'balanced' (eleven_multilingual_v2 + mp3_44100_192).
+ *
+ * Turn ownership rules (unchanged):
+ *  - Only the latest speak() call may play.
+ *  - Every new speak() cancels the previous turn before starting.
+ *  - cancelActiveTurn() stops all audio paths cleanly.
  */
 
 import { Platform } from 'react-native';
@@ -22,16 +25,19 @@ import { Audio } from 'expo-av';
 // ─── Types ────────────────────────────────────────────────────────────────────
 
 export type ProviderName = 'elevenlabs' | 'expo-speech';
+export type QualityMode = 'fast' | 'balanced' | 'quality';
 
 export type FailureReason =
   | 'timeout'
+  | 'api_key_missing_or_invalid'
+  | 'rate_limited'
   | 'api_error_4xx'
   | 'api_error_5xx'
   | 'network_error'
   | 'decode_error'
   | 'playback_error'
   | 'cancelled'
-  | 'unknown';
+  | 'unknown_error';
 
 export type EventType =
   | 'tts_start'
@@ -55,6 +61,10 @@ export interface VoiceEvent {
   error?: string;
   voiceId?: string;
   model?: string;
+  outputFormat?: string;
+  bitrateLabel?: string;
+  sampleRate?: string;
+  mode?: QualityMode;
   timestamp: number;
 }
 
@@ -62,12 +72,26 @@ export interface SpeakOptions {
   text: string;
   gender: 'female' | 'male';
   voiceIndex?: number;
+  mode?: QualityMode;
   /** Injected TTS caller — keeps provider manager decoupled from tRPC */
   elevenLabsCaller: (params: {
     text: string;
     gender: 'female' | 'male';
     voiceIndex: number;
-  }) => Promise<{ audio: string; mimeType: string; voice: string }>;
+    mode: QualityMode;
+    isWeb: boolean;
+  }) => Promise<{
+    audio: string;
+    mimeType: string;
+    voice: string;
+    voiceId?: string;
+    model?: string;
+    outputFormat?: string;
+    bitrateLabel?: string;
+    sampleRate?: string;
+    mode?: string;
+    generationMs?: number;
+  }>;
   onEvent?: (event: VoiceEvent) => void;
 }
 
@@ -81,10 +105,16 @@ export interface SpeakResult {
 
 // ─── Constants ────────────────────────────────────────────────────────────────
 
-const ELEVENLABS_TIMEOUT_MS = 8_000;   // abort if ElevenLabs hasn't responded in 8 s
-const ELEVENLABS_RETRY_ONCE = true;    // retry once on 5xx / network errors
-const EXPO_SPEECH_PITCH = { female: 1.3, male: 0.55 };
-const EXPO_SPEECH_RATE  = { female: 1.0, male: 0.88 };
+// Timeout per mode (client-side guard, server also has its own timeout)
+const CLIENT_TIMEOUT_MS: Record<QualityMode, number> = {
+  fast: 8_000,
+  balanced: 12_000,
+  quality: 15_000,
+};
+
+// expo-speech fallback — tuned for natural German medical speech
+const EXPO_SPEECH_PITCH = { female: 1.15, male: 0.80 };
+const EXPO_SPEECH_RATE  = { female: 0.95, male: 0.88 };
 
 // ─── Turn ownership ───────────────────────────────────────────────────────────
 
@@ -99,27 +129,20 @@ function generateTurnId(): string {
 
 /**
  * Cancel any in-flight or playing audio from a previous turn.
- * Must be called before starting a new turn.
  */
 export async function cancelActiveTurn(reason: 'new_turn' | 'user_interrupt' = 'new_turn'): Promise<void> {
   const prevTurnId = _activeTurnId;
 
-  // Abort in-flight HTTP request
   if (_activeAbortController) {
     _activeAbortController.abort();
     _activeAbortController = null;
   }
 
-  // Stop web audio
   if (_activeWebAudio) {
-    try {
-      _activeWebAudio.pause();
-      _activeWebAudio.src = '';
-    } catch {}
+    try { _activeWebAudio.pause(); _activeWebAudio.src = ''; } catch {}
     _activeWebAudio = null;
   }
 
-  // Stop native sound
   if (_activeNativeSound) {
     try {
       await _activeNativeSound.stopAsync();
@@ -128,7 +151,6 @@ export async function cancelActiveTurn(reason: 'new_turn' | 'user_interrupt' = '
     _activeNativeSound = null;
   }
 
-  // Stop expo-speech
   try { Speech.stop(); } catch {}
 
   if (prevTurnId) {
@@ -141,14 +163,17 @@ export async function cancelActiveTurn(reason: 'new_turn' | 'user_interrupt' = '
 
 function classifyFailure(error: unknown): FailureReason {
   if (error instanceof Error) {
+    const msg = error.message;
     if (error.name === 'AbortError') return 'cancelled';
-    if (error.message.includes('timeout')) return 'timeout';
-    if (error.message.includes('4')) return 'api_error_4xx';
-    if (error.message.includes('5')) return 'api_error_5xx';
-    if (error.message.includes('network') || error.message.includes('fetch')) return 'network_error';
-    if (error.message.includes('decode') || error.message.includes('audio')) return 'decode_error';
+    if (msg.includes('timeout')) return 'timeout';
+    if (msg.includes('api_key') || msg.includes('401') || msg.includes('403')) return 'api_key_missing_or_invalid';
+    if (msg.includes('429') || msg.includes('rate_limited')) return 'rate_limited';
+    if (msg.includes('4xx') || msg.includes('400') || msg.includes('422')) return 'api_error_4xx';
+    if (msg.includes('5xx') || msg.includes('500') || msg.includes('503')) return 'api_error_5xx';
+    if (msg.includes('network') || msg.includes('fetch') || msg.includes('ECONNREFUSED')) return 'network_error';
+    if (msg.includes('decode') || msg.includes('audio')) return 'decode_error';
   }
-  return 'unknown';
+  return 'unknown_error';
 }
 
 function isRetryable(reason: FailureReason): boolean {
@@ -159,30 +184,26 @@ function isRetryable(reason: FailureReason): boolean {
 
 async function callElevenLabsWithTimeout(
   caller: SpeakOptions['elevenLabsCaller'],
-  params: { text: string; gender: 'female' | 'male'; voiceIndex: number },
+  params: { text: string; gender: 'female' | 'male'; voiceIndex: number; mode: QualityMode; isWeb: boolean },
   abortSignal: AbortSignal,
   attempt: number = 0
-): Promise<{ audio: string; mimeType: string; voice: string }> {
-  const timeoutId = setTimeout(() => {
-    // Signal timeout via abort (the caller checks the signal)
-  }, ELEVENLABS_TIMEOUT_MS);
+): Promise<ReturnType<SpeakOptions['elevenLabsCaller']> extends Promise<infer T> ? T : never> {
+  const timeoutMs = CLIENT_TIMEOUT_MS[params.mode];
 
   const timeoutPromise = new Promise<never>((_, reject) => {
-    const id = setTimeout(() => reject(new Error('ElevenLabs timeout')), ELEVENLABS_TIMEOUT_MS);
+    const id = setTimeout(() => reject(new Error('ElevenLabs timeout')), timeoutMs);
     abortSignal.addEventListener('abort', () => { clearTimeout(id); reject(new Error('AbortError')); });
   });
 
   try {
     const result = await Promise.race([caller(params), timeoutPromise]);
-    clearTimeout(timeoutId);
-    return result;
+    return result as any;
   } catch (err) {
-    clearTimeout(timeoutId);
     const reason = classifyFailure(err);
 
-    if (ELEVENLABS_RETRY_ONCE && attempt === 0 && isRetryable(reason)) {
+    if (attempt === 0 && isRetryable(reason)) {
       console.warn(`[ProviderManager] ElevenLabs attempt ${attempt + 1} failed (${reason}), retrying...`);
-      await new Promise(r => setTimeout(r, 300)); // brief back-off
+      await new Promise(r => setTimeout(r, 300));
       return callElevenLabsWithTimeout(caller, params, abortSignal, attempt + 1);
     }
     throw err;
@@ -197,13 +218,9 @@ async function playWebAudio(
   onEvent: (e: VoiceEvent) => void
 ): Promise<void> {
   return new Promise<void>((resolve, reject) => {
-    const audio = new Audio();
+    // Use window.Audio to avoid collision with expo-av Audio import
+    const audio = new (window as any).Audio() as HTMLAudioElement;
     audio.preload = 'auto';
-
-    // Use mp3 — best cross-browser support, good quality
-    audio.src = audioUri;
-
-    // Expose for stale-cancellation
     _activeWebAudio = audio;
 
     audio.onerror = () => {
@@ -212,12 +229,12 @@ async function playWebAudio(
       reject(new Error(msg));
     };
 
+    // Wait for canplaythrough — prevents choppy start on slow connections
     audio.oncanplaythrough = () => {
-      // Only play if this turn is still active
       if (_activeTurnId !== turnId) {
         audio.src = '';
         onEvent({ type: 'tts_stale_cancelled', turnId, timestamp: Date.now() });
-        resolve(); // don't reject — stale is not an error
+        resolve();
         return;
       }
       const playbackStartMs = Date.now();
@@ -231,6 +248,7 @@ async function playWebAudio(
       resolve();
     };
 
+    audio.src = audioUri;
     audio.load();
   });
 }
@@ -250,7 +268,6 @@ async function playNativeAudio(
       );
       _activeNativeSound = sound;
 
-      // Stale check before playback
       if (_activeTurnId !== turnId) {
         await sound.unloadAsync();
         _activeNativeSound = null;
@@ -299,7 +316,7 @@ async function playExpoSpeech(
       },
       onError: (err: Error) => {
         onEvent({ type: 'tts_error', turnId, provider: 'expo-speech', error: err.message, timestamp: Date.now() });
-        resolve(); // don't crash — speech errors are non-fatal
+        resolve();
       },
       onStopped: () => resolve(),
     });
@@ -312,13 +329,18 @@ async function playExpoSpeech(
  * speak()
  *
  * Starts a new turn. Cancels any previous turn automatically.
- * Returns a SpeakResult describing what happened.
- * Throws only on unrecoverable errors (should not happen in practice).
+ * Passes mode and isWeb to the ElevenLabs caller for quality-aware synthesis.
  */
 export async function speak(options: SpeakOptions): Promise<SpeakResult> {
-  const { text, gender, voiceIndex = 0, elevenLabsCaller, onEvent = () => {} } = options;
+  const {
+    text,
+    gender,
+    voiceIndex = 0,
+    mode = 'balanced',
+    elevenLabsCaller,
+    onEvent = () => {},
+  } = options;
 
-  // Cancel previous turn
   await cancelActiveTurn('new_turn');
 
   const turnId = generateTurnId();
@@ -326,6 +348,8 @@ export async function speak(options: SpeakOptions): Promise<SpeakResult> {
   _activeAbortController = new AbortController();
 
   const t0 = Date.now();
+  const isWeb = Platform.OS === 'web';
+
   onEvent({ type: 'tts_start', turnId, timestamp: t0 });
 
   let provider: ProviderName = 'elevenlabs';
@@ -334,28 +358,31 @@ export async function speak(options: SpeakOptions): Promise<SpeakResult> {
   let generationMs = 0;
   let playbackStartMs = 0;
 
-  // ── Try ElevenLabs ──────────────────────────────────────────────────────────
+  // ── Try ElevenLabs ────────────────────────────────────────────────────────
   try {
-    onEvent({ type: 'tts_provider_selected', turnId, provider: 'elevenlabs', timestamp: Date.now() });
+    onEvent({ type: 'tts_provider_selected', turnId, provider: 'elevenlabs', mode, timestamp: Date.now() });
 
     const result = await callElevenLabsWithTimeout(
       elevenLabsCaller,
-      { text, gender, voiceIndex },
+      { text, gender, voiceIndex, mode, isWeb },
       _activeAbortController.signal
     );
 
-    generationMs = Date.now() - t0;
+    generationMs = result.generationMs ?? (Date.now() - t0);
     onEvent({
       type: 'tts_generation_complete',
       turnId,
       provider: 'elevenlabs',
       generationMs,
-      voiceId: result.voice,
-      model: 'eleven_multilingual_v2',
+      voiceId: result.voiceId ?? result.voice,
+      model: result.model,
+      outputFormat: result.outputFormat,
+      bitrateLabel: result.bitrateLabel,
+      sampleRate: result.sampleRate,
+      mode: (result.mode as QualityMode) ?? mode,
       timestamp: Date.now(),
     });
 
-    // Stale check after generation
     if (_activeTurnId !== turnId) {
       onEvent({ type: 'tts_stale_cancelled', turnId, timestamp: Date.now() });
       return { turnId, provider, fallback, generationMs, playbackStartMs };
@@ -364,7 +391,7 @@ export async function speak(options: SpeakOptions): Promise<SpeakResult> {
     const audioUri = `data:${result.mimeType};base64,${result.audio}`;
     playbackStartMs = Date.now();
 
-    if (Platform.OS === 'web') {
+    if (isWeb) {
       await playWebAudio(audioUri, turnId, onEvent);
     } else {
       await playNativeAudio(audioUri, turnId, onEvent);
@@ -373,7 +400,6 @@ export async function speak(options: SpeakOptions): Promise<SpeakResult> {
     return { turnId, provider, fallback, generationMs, playbackStartMs };
 
   } catch (err) {
-    // Cancelled by a newer turn — not an error
     if (_activeTurnId !== turnId) {
       onEvent({ type: 'tts_stale_cancelled', turnId, timestamp: Date.now() });
       return { turnId, provider, fallback: true, generationMs, playbackStartMs };
@@ -383,7 +409,6 @@ export async function speak(options: SpeakOptions): Promise<SpeakResult> {
     fallback = true;
     provider = 'expo-speech';
 
-    // Never silently downgrade — always log
     console.warn(`[ProviderManager] ElevenLabs failed (${fallbackReason}), falling back to expo-speech. Error: ${err}`);
     onEvent({
       type: 'tts_fallback',
@@ -396,7 +421,7 @@ export async function speak(options: SpeakOptions): Promise<SpeakResult> {
     });
   }
 
-  // ── Expo Speech fallback ────────────────────────────────────────────────────
+  // ── Expo Speech fallback ──────────────────────────────────────────────────
   onEvent({ type: 'tts_provider_selected', turnId, provider: 'expo-speech', timestamp: Date.now() });
 
   if (_activeTurnId !== turnId) {
