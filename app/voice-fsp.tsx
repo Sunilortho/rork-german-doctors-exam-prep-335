@@ -51,6 +51,7 @@ import {
   detectEmotionalState,
 } from '@/constants/voiceProfiles';
 import { speak as providerSpeak, cancelActiveTurn, VoiceEvent } from '@/lib/voiceProvider/providerManager';
+import { TurnLogger } from '@/lib/voiceProvider/turnLogger';
 import VoiceDebugOverlay from '@/components/VoiceDebugOverlay';
 
 
@@ -288,10 +289,11 @@ export default function VoiceFSPScreen() {
   
   const recordingRef = useRef<Audio.Recording | null>(null);
   const scrollViewRef = useRef<ScrollView>(null);
-  // soundRef and webAudioRef are now managed inside providerManager — kept here
-  // only for the legacy replayLastPatient path which still uses speakTextEnhanced.
+  // soundRef and webAudioRef are now managed inside providerManager
   const soundRef = useRef<Audio.Sound | null>(null);
   const webAudioRef = useRef<HTMLAudioElement | null>(null);
+  // Active TurnLogger — created per turn, lives until playback_end
+  const activeTurnLoggerRef = useRef<TurnLogger | null>(null);
 
   // Debug overlay event log (dev-only)
   const [voiceEvents, setVoiceEvents] = useState<VoiceEvent[]>([]);
@@ -479,15 +481,23 @@ export default function VoiceFSPScreen() {
    *  - expo-speech fallback (never silent)
    *  - Debug event emission
    */
-  const speakTextEnhanced = async (
+  /**
+   * Internal: speaks with an existing TurnLogger (for STT→LLM→TTS continuity).
+   */
+  const speakTextEnhancedWithLogger = async (
     text: string,
     voice: VoiceProfile,
     emotionalState: EmotionalState,
-    patientGender: 'female' | 'male' = 'female'
+    patientGender: 'female' | 'male' = 'female',
+    logger?: TurnLogger
   ) => {
     setIsSpeaking(true);
     const ttsText = prepareTextForTTS(text, emotionalState);
     console.log(`[VoiceFSP] Speaking: "${ttsText.substring(0, 50)}..." | voice: ${voice.name} | state: ${emotionalState} | gender: ${patientGender}`);
+
+    // Use provided logger (from STT turn) or create a new one
+    const activeLogger = logger ?? new TurnLogger();
+    activeTurnLoggerRef.current = activeLogger;
 
     try {
       await providerSpeak({
@@ -495,17 +505,33 @@ export default function VoiceFSPScreen() {
         gender: patientGender,
         voiceIndex: 0,
         mode: voiceQualityMode,
+        turnLogger: activeLogger,
         elevenLabsCaller: (params) => elevenLabsMutation.mutateAsync({
           ...params,
           isWeb: Platform.OS === 'web',
         }),
-        onEvent: addVoiceEvent,
+        onEvent: (e) => {
+          addVoiceEvent(e);
+          // Print the full turn log when playback ends
+          if (e.type === 'tts_playback_complete' || e.type === 'tts_stale_cancelled') {
+            activeLogger.print();
+          }
+        },
       });
     } catch (err) {
       console.warn('[VoiceFSP] providerSpeak error (should not reach here):', err);
     } finally {
       setIsSpeaking(false);
     }
+  };
+
+  const speakTextEnhanced = async (
+    text: string,
+    voice: VoiceProfile,
+    emotionalState: EmotionalState,
+    patientGender: 'female' | 'male' = 'female'
+  ) => {
+    await speakTextEnhancedWithLogger(text, voice, emotionalState, patientGender);
   };
 
   const speakText = async (text: string) => {
@@ -577,6 +603,11 @@ export default function VoiceFSPScreen() {
     try {
       setIsRecording(false);
       setIsProcessing(true);
+
+      // Mark user speech end for per-turn timing
+      const logger = new TurnLogger();
+      activeTurnLoggerRef.current = logger;
+      logger.mark('user_speech_end');
       
       await recordingRef.current.stopAndUnloadAsync();
       const uri = recordingRef.current.getURI();
@@ -587,7 +618,7 @@ export default function VoiceFSPScreen() {
       });
 
       if (uri) {
-        await processAudio(uri);
+        await processAudio(uri, logger);
       }
     } catch (error) {
       console.log('Failed to stop recording:', error);
@@ -595,7 +626,7 @@ export default function VoiceFSPScreen() {
     }
   };
 
-  const processAudio = async (uri: string) => {
+  const processAudio = async (uri: string, logger?: TurnLogger) => {
     try {
       const formData = new FormData();
       const uriParts = uri.split('.');
@@ -610,6 +641,7 @@ export default function VoiceFSPScreen() {
       formData.append('audio', audioFile as any);
       formData.append('language', 'de');
 
+      logger?.mark('stt_start');
       const response = await fetch('https://toolkit.rork.com/stt/transcribe/', {
         method: 'POST',
         body: formData,
@@ -620,10 +652,11 @@ export default function VoiceFSPScreen() {
       }
 
       const data = await response.json();
+      logger?.mark('stt_end');
       const transcribedText = data.text;
 
       if (transcribedText && transcribedText.trim()) {
-        await handleDoctorMessage(transcribedText);
+        await handleDoctorMessage(transcribedText, logger);
       } else {
         Alert.alert('Hinweis', 'Keine Sprache erkannt. Bitte sprechen Sie deutlicher.');
         setIsProcessing(false);
@@ -635,7 +668,7 @@ export default function VoiceFSPScreen() {
     }
   };
 
-  const handleDoctorMessage = async (text: string) => {
+  const handleDoctorMessage = async (text: string, logger?: TurnLogger) => {
     const hint = analyzeForPronunciationHints(text);
     if (hint) {
       showHint(hint);
@@ -654,10 +687,10 @@ export default function VoiceFSPScreen() {
       scrollViewRef.current?.scrollToEnd({ animated: true });
     }, 100);
 
-    await generatePatientResponse(text);
+    await generatePatientResponse(text, logger);
   };
 
-  const generatePatientResponse = async (doctorInput: string) => {
+  const generatePatientResponse = async (doctorInput: string, logger?: TurnLogger) => {
     // Capture a generation ID so we can discard stale responses if the user
     // taps mic again before this async chain completes.
     const genId = Date.now();
@@ -675,6 +708,7 @@ export default function VoiceFSPScreen() {
 
       const systemPrompt = createPatientPrompt(currentScenario, settings.personality, newEmotionalState);
 
+      logger?.mark('llm_start');
       const response = await generateText({
         messages: [
           { role: 'user', content: systemPrompt },
@@ -683,6 +717,7 @@ export default function VoiceFSPScreen() {
           { role: 'user', content: doctorInput },
         ],
       });
+      logger?.mark('llm_end');
 
       // Discard if a newer generation has already started
       if (!isProcessing) {
@@ -709,7 +744,8 @@ export default function VoiceFSPScreen() {
 
       console.log(`[VoiceFSP] Patient response | emotional state: ${newEmotionalState} | genId: ${genIdRef}`);
       // providerManager will cancel any stale audio before playing this turn
-      await speakTextEnhanced(patientResponse, currentVoice, newEmotionalState, currentScenario.gender);
+      // Pass the same logger so TTS timing marks continue in the same turn log
+      await speakTextEnhancedWithLogger(patientResponse, currentVoice, newEmotionalState, currentScenario.gender, logger);
     } catch (error) {
       console.log('[VoiceFSP] AI generation error:', error);
       const fallbackResponses = [
