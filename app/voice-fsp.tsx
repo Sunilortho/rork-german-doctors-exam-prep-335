@@ -50,6 +50,8 @@ import {
   prepareTextForTTS,
   detectEmotionalState,
 } from '@/constants/voiceProfiles';
+import { speak as providerSpeak, cancelActiveTurn, VoiceEvent } from '@/lib/voiceProvider/providerManager';
+import VoiceDebugOverlay from '@/components/VoiceDebugOverlay';
 
 
 
@@ -286,9 +288,15 @@ export default function VoiceFSPScreen() {
   
   const recordingRef = useRef<Audio.Recording | null>(null);
   const scrollViewRef = useRef<ScrollView>(null);
+  // soundRef and webAudioRef are now managed inside providerManager — kept here
+  // only for the legacy replayLastPatient path which still uses speakTextEnhanced.
   const soundRef = useRef<Audio.Sound | null>(null);
   const webAudioRef = useRef<HTMLAudioElement | null>(null);
-  
+
+  // Debug overlay event log (dev-only)
+  const [voiceEvents, setVoiceEvents] = useState<VoiceEvent[]>([]);
+  const addVoiceEvent = (e: VoiceEvent) => setVoiceEvents(prev => [...prev.slice(-30), e]);
+
   const elevenLabsMutation = trpc.tts.speakElevenLabs.useMutation();
 
   useEffect(() => {
@@ -297,15 +305,8 @@ export default function VoiceFSPScreen() {
       if (recordingRef.current) {
         recordingRef.current.stopAndUnloadAsync();
       }
-      Speech.stop();
-      if (soundRef.current) {
-        soundRef.current.stopAsync();
-        soundRef.current.unloadAsync();
-      }
-      if (webAudioRef.current) {
-        webAudioRef.current.pause();
-        webAudioRef.current = null;
-      }
+      // Cancel any active provider turn on unmount
+      cancelActiveTurn('user_interrupt');
     };
   }, []);
 
@@ -465,150 +466,37 @@ export default function VoiceFSPScreen() {
     console.log(`[VoiceFSP] Session started with ${scenario.name}, voice: ${voice.name} (${voice.age}), gender: ${scenario.gender}`);
   };
 
+  /**
+   * speakTextEnhanced — now delegates to providerManager.speak().
+   *
+   * The provider manager handles:
+   *  - Turn ownership (only latest turn plays)
+   *  - Stale cancellation
+   *  - ElevenLabs primary with timeout + 1 retry
+   *  - expo-speech fallback (never silent)
+   *  - Debug event emission
+   */
   const speakTextEnhanced = async (
     text: string,
     voice: VoiceProfile,
     emotionalState: EmotionalState,
     patientGender: 'female' | 'male' = 'female'
   ) => {
-    try {
-      setIsSpeaking(true);
-      
-      const ttsText = prepareTextForTTS(text, emotionalState);
-      
-      console.log(`[VoiceFSP] Speaking: "${ttsText.substring(0, 50)}..." with ${voice.name} (${emotionalState}) - ${patientGender} patient`);
-      
-      await speakWithCloudTTS(ttsText, patientGender);
-    } catch (error) {
-      console.log('[VoiceFSP] Speech error:', error);
-      setIsSpeaking(false);
-    }
-  };
+    setIsSpeaking(true);
+    const ttsText = prepareTextForTTS(text, emotionalState);
+    console.log(`[VoiceFSP] Speaking: "${ttsText.substring(0, 50)}..." | voice: ${voice.name} | state: ${emotionalState} | gender: ${patientGender}`);
 
-  const speakWithCloudTTS = async (
-    text: string,
-    patientGender: 'female' | 'male'
-  ) => {
     try {
-      console.log('[VoiceFSP] Calling ElevenLabs TTS for', patientGender);
-      
-      // Use consistent voice (index 0) to avoid tone changes between messages
-      const result = await elevenLabsMutation.mutateAsync({
-        text,
+      await providerSpeak({
+        text: ttsText,
         gender: patientGender,
         voiceIndex: 0,
+        elevenLabsCaller: (params) => elevenLabsMutation.mutateAsync(params),
+        onEvent: addVoiceEvent,
       });
-      
-      console.log(`[VoiceFSP] ElevenLabs response received, voice: ${result.voice}`);
-      
-      const audioUri = `data:${result.mimeType};base64,${result.audio}`;
-      
-      // Web: Use HTML5 Audio for better compatibility
-      if (Platform.OS === 'web') {
-        // Cleanup any existing web audio
-        if (webAudioRef.current) {
-          webAudioRef.current.pause();
-          webAudioRef.current = null;
-        }
-        
-        console.log('[VoiceFSP] Creating web Audio with data URI, length:', audioUri.length);
-        
-        const audio = new Audio();
-        audio.preload = 'auto';
-        webAudioRef.current = audio;
-        
-        // Set up error handler first
-        audio.onerror = () => {
-          console.log('[VoiceFSP] Web audio error:', audio.error, 'message:', audio.error?.message);
-        };
-        
-        // Load the audio
-        audio.src = audioUri;
-        audio.load();
-        
-        // Play and wait
-        try {
-          const playPromise = audio.play();
-          if (playPromise !== undefined) {
-            await playPromise;
-          }
-          console.log('[VoiceFSP] Web audio started playing');
-          
-          // Wait for playback to finish
-          await new Promise<void>((resolve) => {
-            audio.onended = () => {
-              console.log('[VoiceFSP] ElevenLabs web playback completed');
-              setIsSpeaking(false);
-              webAudioRef.current = null;
-              resolve();
-            };
-          });
-        } catch (playError) {
-          console.log('[VoiceFSP] Web audio play error:', playError);
-          throw playError; // Re-throw to trigger fallback
-        }
-        
-        return;
-      }
-      
-      // Native: Use expo-av as before
-      if (soundRef.current) {
-        await soundRef.current.stopAsync();
-        await soundRef.current.unloadAsync();
-        soundRef.current = null;
-      }
-      
-      const { sound } = await Audio.Sound.createAsync(
-        { uri: audioUri },
-        { shouldPlay: true }
-      );
-      
-      soundRef.current = sound;
-      
-      sound.setOnPlaybackStatusUpdate((status: import('expo-av').AVPlaybackStatus) => {
-        if (status.isLoaded && status.didJustFinish) {
-          console.log('[VoiceFSP] ElevenLabs native playback completed');
-          setIsSpeaking(false);
-          sound.unloadAsync();
-          soundRef.current = null;
-        }
-      });
-    } catch (error) {
-      console.log('[VoiceFSP] ElevenLabs TTS error, falling back to expo-speech:', error);
-      await speakWithExpoSpeechFallback(text, patientGender);
-    }
-  };
-
-  const speakWithExpoSpeechFallback = async (
-    text: string,
-    patientGender: 'female' | 'male'
-  ) => {
-    try {
-      await Speech.stop();
-      
-      const finalPitch = patientGender === 'female' ? 1.3 : 0.55;
-      const finalRate = patientGender === 'female' ? 1.0 : 0.88;
-      
-      console.log('[VoiceFSP] Fallback expo-speech for', patientGender);
-      
-      await Speech.speak(text, {
-        language: 'de-DE',
-        pitch: finalPitch,
-        rate: finalRate,
-        onDone: () => {
-          console.log('[VoiceFSP] Fallback speech completed');
-          setIsSpeaking(false);
-        },
-        onError: (error: Error) => {
-          console.log('[VoiceFSP] Fallback speech error:', error);
-          setIsSpeaking(false);
-        },
-        onStopped: () => {
-          setIsSpeaking(false);
-        },
-      });
-    } catch (error) {
-      console.log('[VoiceFSP] Fallback speech error:', error);
+    } catch (err) {
+      console.warn('[VoiceFSP] providerSpeak error (should not reach here):', err);
+    } finally {
       setIsSpeaking(false);
     }
   };
@@ -660,6 +548,12 @@ export default function VoiceFSPScreen() {
         },
         web: {},
       });
+
+      // Interrupt any currently playing patient turn when the doctor taps mic
+      if (isSpeaking) {
+        await cancelActiveTurn('user_interrupt');
+        setIsSpeaking(false);
+      }
 
       recordingRef.current = recording;
       setIsRecording(true);
@@ -757,10 +651,16 @@ export default function VoiceFSPScreen() {
   };
 
   const generatePatientResponse = async (doctorInput: string) => {
+    // Capture a generation ID so we can discard stale responses if the user
+    // taps mic again before this async chain completes.
+    const genId = Date.now();
+    const genIdRef = genId; // closure capture
+
     try {
       const newEmotionalState = detectEmotionalState(doctorInput, settings.personality);
       setCurrentEmotionalState(newEmotionalState);
       
+      // Snapshot messages at call time to avoid stale closure over growing array
       const conversationHistory = messages.map(m => ({
         role: m.role === 'arzt' ? 'user' as const : 'assistant' as const,
         content: m.content,
@@ -777,8 +677,13 @@ export default function VoiceFSPScreen() {
         ],
       });
 
+      // Discard if a newer generation has already started
+      if (!isProcessing) {
+        console.log('[VoiceFSP] Discarding stale AI response (genId:', genIdRef, ')');
+        return;
+      }
+
       let patientResponse = response || 'Entschuldigung, können Sie das bitte wiederholen?';
-      
       patientResponse = processTextForNaturalSpeech(patientResponse, newEmotionalState, settings.personality);
 
       const patientMessage: FSPMessage = {
@@ -795,7 +700,8 @@ export default function VoiceFSPScreen() {
         scrollViewRef.current?.scrollToEnd({ animated: true });
       }, 100);
 
-      console.log(`[VoiceFSP] Patient response with emotional state: ${newEmotionalState}`);
+      console.log(`[VoiceFSP] Patient response | emotional state: ${newEmotionalState} | genId: ${genIdRef}`);
+      // providerManager will cancel any stale audio before playing this turn
       await speakTextEnhanced(patientResponse, currentVoice, newEmotionalState, currentScenario.gender);
     } catch (error) {
       console.log('[VoiceFSP] AI generation error:', error);
@@ -831,13 +737,11 @@ export default function VoiceFSPScreen() {
   const resetSession = async () => {
     setMessages([]);
     setShowSettings(true);
-    Speech.stop();
-    if (soundRef.current) {
-      await soundRef.current.stopAsync();
-      await soundRef.current.unloadAsync();
-      soundRef.current = null;
-    }
+    // Cancel any active provider turn (stops web audio, native sound, expo-speech)
+    await cancelActiveTurn('user_interrupt');
+    setIsSpeaking(false);
     setCurrentEmotionalState('neutral');
+    setVoiceEvents([]);
   };
 
   const replayLastPatient = () => {
@@ -1241,6 +1145,9 @@ export default function VoiceFSPScreen() {
           </View>
         )}
       </View>
+
+      {/* Dev-only voice debug overlay */}
+      <VoiceDebugOverlay events={voiceEvents} />
     </SafeAreaView>
   );
 }
