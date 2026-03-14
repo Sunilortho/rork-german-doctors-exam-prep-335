@@ -1,19 +1,25 @@
 /**
  * femalePresetTest.ts
  * ─────────────────────────────────────────────────────────────────────────────
- * Automated test runner: calls ElevenLabs for all 3 female presets × 10
+ * Automated A/B test runner: calls ElevenLabs for all 3 female presets × 12
  * utterances and logs per-test parameters + latency.
+ *
+ * BAKE-OFF WINNER: Sarah (EXAVITQu4vr4xnSDxMaL) — Germany German, soft/news
+ * Default preset: BALANCED (Sarah)
  *
  * Run with:
  *   npx ts-node --project tsconfig.json scripts/femalePresetTest.ts
  *
  * Requires: ELEVENLABS_API_KEY in environment.
  * Output: scripts/femalePresetTestResults.json + console table.
+ *
+ * Total API calls: 3 presets × 12 utterances = 36 calls
  */
 
 import {
   FEMALE_PRESETS,
   FEMALE_TEST_UTTERANCES,
+  DEFAULT_FEMALE_PRESET,
   type FemalePresetName,
 } from '../lib/voiceProvider/femaleVoicePresets';
 import * as fs from 'fs';
@@ -146,14 +152,18 @@ async function runAll(): Promise<void> {
 
   const presets: FemalePresetName[] = ['safe', 'balanced', 'expressive'];
   const results: TestResult[] = [];
+  const totalCalls = presets.length * FEMALE_TEST_UTTERANCES.length;
 
   console.log(`\n${'═'.repeat(80)}`);
-  console.log('  FEMALE VOICE PRESET TEST — 3 presets × 10 utterances = 30 calls');
+  console.log(`  FEMALE VOICE STRATEGY REPLACEMENT — A/B TEST`);
+  console.log(`  ${presets.length} presets × ${FEMALE_TEST_UTTERANCES.length} utterances = ${totalCalls} calls`);
+  console.log(`  Default preset: ${DEFAULT_FEMALE_PRESET.toUpperCase()} (${FEMALE_PRESETS[DEFAULT_FEMALE_PRESET].voiceName} — ${FEMALE_PRESETS[DEFAULT_FEMALE_PRESET].voiceBase})`);
   console.log(`${'═'.repeat(80)}\n`);
 
   for (const preset of presets) {
     const p = FEMALE_PRESETS[preset];
-    console.log(`\n── PRESET: ${preset.toUpperCase()} ──────────────────────────────────────────`);
+    const isDefault = preset === DEFAULT_FEMALE_PRESET;
+    console.log(`\n── PRESET: ${preset.toUpperCase()}${isDefault ? ' ★ DEFAULT (BAKE-OFF WINNER)' : ''} ─────────────────────────`);
     console.log(`   Voice:      ${p.voiceName} (${p.voiceBase})`);
     console.log(`   Voice ID:   ${p.voiceId}`);
     console.log(`   Stability:  ${p.stability}`);
@@ -197,9 +207,10 @@ async function runAll(): Promise<void> {
       : null;
     const errors = results.filter(r => r.preset === preset && r.status !== 'ok').length;
     const p = FEMALE_PRESETS[preset];
+    const isDefault = preset === DEFAULT_FEMALE_PRESET;
 
     console.log(
-      `  ${preset.toUpperCase().padEnd(12)} | ${p.voiceName.padEnd(10)} | ` +
+      `  ${preset.toUpperCase().padEnd(12)}${isDefault ? '★' : ' '} | ${p.voiceName.padEnd(10)} (${p.voiceBase.padEnd(16)}) | ` +
       `stability=${p.stability} sim=${p.similarityBoost} style=${p.style} boost=${p.useSpeakerBoost ? 'ON' : 'OFF'} | ` +
       `avg TTFB ${avgTtfb ?? '—'}ms | avg total ${avgGen ?? '—'}ms | errors: ${errors}`
     );

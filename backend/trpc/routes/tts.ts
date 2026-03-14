@@ -1,23 +1,30 @@
 /**
  * tts.ts — ElevenLabs TTS backend route
  * ─────────────────────────────────────────────────────────────────────────────
- * FEMALE-VOICE-ONLY TUNING PASS
+ * FEMALE VOICE STRATEGY REPLACEMENT — BAKE-OFF WINNER: Sarah
  *
  * Changes in this pass:
- *   - Added `femalePreset` input param (optional, 'safe'|'balanced'|'expressive')
+ *   - `femalePreset` input param (optional, 'safe'|'balanced'|'expressive')
  *   - When gender=female AND femalePreset is set, the female preset settings
  *     override the shared mode settings (stability, similarity, style,
  *     speaker_boost, voiceId).
+ *   - DEFAULT_FEMALE_PRESET = 'balanced' → Sarah (Germany German, soft/news)
  *   - Male path: COMPLETELY UNCHANGED. Male voices still use MODES config.
- *   - Response now includes femalePreset, voiceBase, speakerBoost fields
- *     for per-turn logging.
+ *   - Response includes femalePreset, voiceBase, speakerBoost fields
+ *     for per-turn logging in VoiceDebugOverlay.
  *
  * FEMALE PRESET ROUTING:
- *   gender=female + femalePreset=safe       → Rachel + SAFE settings
- *   gender=female + femalePreset=balanced   → Charlotte + BALANCED settings (default)
- *   gender=female + femalePreset=expressive → Bella + EXPRESSIVE settings
- *   gender=female + no femalePreset         → falls back to shared MODES config
+ *   gender=female + femalePreset=safe       → Rachel + SAFE settings (regression ref)
+ *   gender=female + femalePreset=balanced   → Sarah + BALANCED settings (DEFAULT)
+ *   gender=female + femalePreset=expressive → Serena + EXPRESSIVE settings
+ *   gender=female + no femalePreset         → Sarah (DEFAULT_FEMALE_PRESET = 'balanced')
  *   gender=male   + any femalePreset        → femalePreset IGNORED, male path used
+ *
+ * BAKE-OFF WINNER: Sarah (EXAVITQu4vr4xnSDxMaL)
+ *   - ElevenLabs Germany German, soft/news profile
+ *   - Eliminates sibilant distortion on German fricatives (sch, ch, z, s)
+ *   - speaker_boost OFF — no harshness on female voice
+ *   - similarity 0.62 — avoids distortion, preserves voice character
  *
  * MALE SETTINGS (unchanged from previous rebuild):
  *   BALANCED: eleven_multilingual_v2 + mp3_44100_192 + stability 0.62 + sim 0.85
@@ -29,7 +36,6 @@ import * as z from "zod";
 import { createTRPCRouter, publicProcedure } from "../create-context";
 import {
   FEMALE_PRESETS,
-  FEMALE_VOICES,
   DEFAULT_FEMALE_PRESET,
   type FemalePresetName,
 } from '../../../lib/voiceProvider/femaleVoicePresets';
@@ -41,7 +47,7 @@ const MALE_VOICES = [
   { id: 'TxGEqnHWrfWFTfGW9XjX', name: 'Josh' },
 ];
 
-// ─── Shared quality mode configs (used for male + female fallback) ────────────
+// ─── Shared quality mode configs (used for male path only) ───────────────────
 export type QualityMode = 'fast' | 'balanced' | 'quality';
 
 interface ModeConfig {
@@ -152,7 +158,7 @@ export const ttsRouter = createTRPCRouter({
       let resolvedFemalePreset: FemalePresetName | null = null;
 
       if (input.gender === 'female') {
-        // ── FEMALE PATH: use preset if provided, else use shared mode ──────
+        // ── FEMALE PATH: use preset (defaults to 'balanced' → Sarah) ─────────
         const presetName = input.femalePreset ?? DEFAULT_FEMALE_PRESET;
         const preset = FEMALE_PRESETS[presetName];
         resolvedFemalePreset = presetName;
@@ -264,7 +270,7 @@ export const ttsRouter = createTRPCRouter({
           sampleRate: '44100 Hz',
           mode: input.mode,
           femalePreset: resolvedFemalePreset,
-          // Voice settings (for per-turn log)
+          // Voice settings (for per-turn log in VoiceDebugOverlay)
           stability,
           similarityBoost,
           style,

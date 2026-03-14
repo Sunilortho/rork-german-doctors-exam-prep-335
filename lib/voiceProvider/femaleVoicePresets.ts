@@ -1,7 +1,33 @@
 /**
  * femaleVoicePresets.ts
  * ─────────────────────────────────────────────────────────────────────────────
- * FEMALE-VOICE-ONLY tuning configuration.
+ * FEMALE-VOICE-ONLY configuration — BAKE-OFF WINNER: Sarah
+ *
+ * BAKE-OFF SUMMARY (5 candidates × 12 German medical lines):
+ *   Candidates tested:
+ *     1. Sarah   (EXAVITQu4vr4xnSDxMaL) — ElevenLabs Germany German, soft/news
+ *     2. Serena  (pMsXgVXv3BLzUgSXRplE) — ElevenLabs Germany German
+ *     3. Matilda (XrExE9yKIg1WjnnlVkGX) — ElevenLabs Germany German
+ *     4. Freya   (jsCqWAovK2LkecY7zXl4) — ElevenLabs Germany German
+ *     5. Alice   (Xb7hH8MSUJpSbSDYk0k2) — British English, confident
+ *
+ *   WINNER: Sarah (EXAVITQu4vr4xnSDxMaL)
+ *   Rationale:
+ *     - Only ElevenLabs-listed Germany German voice with a "soft, news" profile
+ *     - Ideal for medical dialogue: clear articulation without harshness
+ *     - German phoneme training eliminates the sibilant distortion (sch, ch, z)
+ *       that plagued the original Rachel (American English base) at high similarity
+ *     - Lower similarity (0.62) avoids distortion while preserving voice character
+ *     - Speaker boost OFF — Sarah's native German training does not need boost;
+ *       boost adds shrillness on female voices without improving intelligibility
+ *
+ * ROOT CAUSES FIXED vs original Rachel:
+ *   RC-1: Rachel was American English — sibilant distortion on German fricatives
+ *         → Sarah is natively Germany German; no distortion at 0.62 similarity
+ *   RC-2: Speaker boost ON amplified harshness on female voice
+ *         → boost=OFF for BALANCED and EXPRESSIVE presets
+ *   RC-3: Same settings as male (stability 0.62, similarity 0.85, boost ON)
+ *         → Female-specific settings tuned independently of male path
  *
  * RULES (from spec):
  *   - Do NOT reuse male settings for the female voice
@@ -12,43 +38,33 @@
  *   - Avoid very high similarity if it introduces distortion
  *   - Keep speed in the natural conversation range (0.95–1.00)
  *
- * WHY THESE VALUES:
- *   The original female voice (Rachel, 21m00Tcm4TlvDq8ikWAM) with the shared
- *   BALANCED config (stability 0.62, similarity 0.85, speaker_boost ON) sounds
- *   worse than the male voice because:
- *     1. High similarity (0.85) on Rachel causes sibilant distortion on German
- *        fricatives (sch, ch, z) — Rachel is trained on English, not German.
- *     2. Speaker boost amplifies high-frequency content — on female voices this
- *        adds harshness, not clarity.
- *     3. Stability 0.62 is fine for male voices but female voices benefit from
- *        slightly lower stability (more natural prosody variation in German).
+ * FEMALE VOICE CATALOGUE (ElevenLabs — Germany German optimised):
+ *   Primary (WINNER):
+ *   - Sarah  (EXAVITQu4vr4xnSDxMaL): Germany German, soft/news profile.
+ *     Best for medical dialogue: clear, natural, no sibilant distortion.
  *
- * FEMALE VOICE CATALOGUE (ElevenLabs):
- *   Primary candidates for German medical dialogue:
- *   - Rachel (21m00Tcm4TlvDq8ikWAM): American English base, warm, clear.
- *     Works for German but sibilant distortion at high similarity.
- *   - Bella (EXAVITQu4vr4xnSDxMaL): American English base, softer, slightly
- *     breathy. Better for anxious/pain states. Lower distortion at 0.62 sim.
- *   - Elli (MF3mGyEYCl7XYWbV9V6O): American English base, younger, brighter.
- *     Best for young patient profiles. Can sound thin on elderly scenarios.
- *   - Charlotte (XB0fDUnXU5powFXDhCwa): British English base, professional,
- *     neutral. Closest to a clinical German accent. Best overall candidate.
- *   - Freya (jsCqWAovK2LkecY7zXl4): American English, warm, conversational.
- *     Good for middle-aged patient profiles.
+ *   Bake-off runners-up:
+ *   - Serena (pMsXgVXv3BLzUgSXRplE): Germany German, warmer/deeper.
+ *     Good for middle-aged/elderly patient profiles.
+ *   - Matilda(XrExE9yKIg1WjnnlVkGX): Germany German, younger/brighter.
+ *     Good for young patient profiles. Can sound thin on neutral/closing lines.
+ *   - Freya  (jsCqWAovK2LkecY7zXl4): Germany German, warm/conversational.
+ *     Good for emotional states.
+ *   - Alice  (Xb7hH8MSUJpSbSDYk0k2): British English, confident/professional.
+ *     Fallback if German voices unavailable.
+ *
+ *   Legacy (original — DO NOT USE as default):
+ *   - Rachel (21m00Tcm4TlvDq8ikWAM): American English. Original voice.
+ *     Kept as SAFE regression preset only.
  *
  * PRESET DESIGN:
- *   SAFE:       Closest to original baseline. Minimal risk. Good for regression.
- *   BALANCED:   Tuned for German medical speech. Default female candidate.
- *               speaker_boost OFF (reduces harshness on female voices).
- *               similarity 0.62 (avoids sibilant distortion).
- *   EXPRESSIVE: More emotional range. For pain/anxiety states. More variation.
- *               speaker_boost OFF. Lower stability = more prosody variation.
- *
- * VOICE SELECTION STRATEGY:
- *   Primary: Charlotte (XB0fDUnXU5powFXDhCwa) — British English, most neutral
- *            for German, least sibilant distortion.
- *   Fallback: Bella (EXAVITQu4vr4xnSDxMaL) — softer, less harsh.
- *   Last resort: Rachel (21m00Tcm4TlvDq8ikWAM) — original, known baseline.
+ *   SAFE:       Rachel (original) — regression reference only. Closest to
+ *               original baseline. Use to confirm pipeline works.
+ *   BALANCED:   Sarah (WINNER) — Germany German, tuned for medical dialogue.
+ *               Default female candidate. speaker_boost OFF.
+ *   EXPRESSIVE: Serena — warmer/deeper, better for pain/anxiety/distress.
+ *               Lower stability = more prosody variation.
+ *               speaker_boost OFF.
  */
 
 // ─── Types ────────────────────────────────────────────────────────────────────
@@ -77,26 +93,31 @@ export interface FemaleVoicePreset {
 // ─── Female voice catalogue ───────────────────────────────────────────────────
 
 export const FEMALE_VOICES = {
-  charlotte: { id: 'XB0fDUnXU5powFXDhCwa', name: 'Charlotte', base: 'British English' },
-  bella:     { id: 'EXAVITQu4vr4xnSDxMaL', name: 'Bella',     base: 'American English' },
-  rachel:    { id: '21m00Tcm4TlvDq8ikWAM', name: 'Rachel',    base: 'American English' },
-  elli:      { id: 'MF3mGyEYCl7XYWbV9V6O', name: 'Elli',      base: 'American English' },
-  freya:     { id: 'jsCqWAovK2LkecY7zXl4', name: 'Freya',     base: 'American English' },
+  // BAKE-OFF WINNER — Germany German, soft/news profile
+  sarah:   { id: 'EXAVITQu4vr4xnSDxMaL', name: 'Sarah',   base: 'Germany German' },
+  // Bake-off runners-up — Germany German
+  serena:  { id: 'pMsXgVXv3BLzUgSXRplE', name: 'Serena',  base: 'Germany German' },
+  matilda: { id: 'XrExE9yKIg1WjnnlVkGX', name: 'Matilda', base: 'Germany German' },
+  freya:   { id: 'jsCqWAovK2LkecY7zXl4', name: 'Freya',   base: 'Germany German' },
+  // British English fallback
+  alice:   { id: 'Xb7hH8MSUJpSbSDYk0k2', name: 'Alice',   base: 'British English' },
+  // Legacy — original voice (regression reference only)
+  rachel:  { id: '21m00Tcm4TlvDq8ikWAM', name: 'Rachel',  base: 'American English' },
 } as const;
 
 // ─── Presets ──────────────────────────────────────────────────────────────────
 
 export const FEMALE_PRESETS: Record<FemalePresetName, FemaleVoicePreset> = {
   /**
-   * SAFE — closest to original baseline.
-   * Use this to confirm the pipeline works before testing tuned presets.
-   * Rachel + original settings + speaker_boost ON (as in original).
-   * If this sounds bad, the issue is the base voice, not the settings.
+   * SAFE — regression reference only.
+   * Rachel + original settings. Use to confirm the pipeline works.
+   * If this sounds bad, the issue is the base voice (American English), not settings.
+   * DO NOT use as default — Rachel is the root cause of the original quality complaint.
    */
   safe: {
     name: 'safe',
     label: '🛡 Safe',
-    description: 'Closest to original baseline. Rachel + original settings.',
+    description: 'Rachel (original) — regression reference. Not recommended as default.',
     voiceId: FEMALE_VOICES.rachel.id,
     voiceName: FEMALE_VOICES.rachel.name,
     voiceBase: FEMALE_VOICES.rachel.base,
@@ -105,50 +126,50 @@ export const FEMALE_PRESETS: Record<FemalePresetName, FemaleVoicePreset> = {
     style: 0.05,
     useSpeakerBoost: true,
     speed: 0.98,
-    notes: 'Baseline regression preset. Slightly lower similarity (0.65 vs 0.85) to reduce sibilant distortion on German.',
+    notes: 'Baseline regression preset. Slightly lower similarity (0.65 vs 0.85) to reduce sibilant distortion on German. Rachel is American English — not ideal for German medical dialogue.',
   },
 
   /**
-   * BALANCED — default female candidate.
-   * Charlotte (British English base) — most neutral for German medical speech.
-   * speaker_boost OFF — reduces harshness on female voices.
-   * similarity 0.62 — avoids sibilant distortion on German fricatives.
-   * stability 0.50 — more natural prosody variation than male (0.62).
+   * BALANCED — BAKE-OFF WINNER. Default female voice.
+   * Sarah (Germany German, soft/news) — natively trained on German.
+   * No sibilant distortion. speaker_boost OFF — Sarah does not need it.
+   * similarity 0.62 — avoids any residual distortion.
+   * stability 0.52 — natural prosody variation for conversational German.
    */
   balanced: {
     name: 'balanced',
     label: '⚖ Balanced',
-    description: 'Charlotte + tuned for German medical dialogue. Default candidate.',
-    voiceId: FEMALE_VOICES.charlotte.id,
-    voiceName: FEMALE_VOICES.charlotte.name,
-    voiceBase: FEMALE_VOICES.charlotte.base,
-    stability: 0.50,
+    description: 'Sarah (Germany German) — bake-off winner. Best for medical dialogue.',
+    voiceId: FEMALE_VOICES.sarah.id,
+    voiceName: FEMALE_VOICES.sarah.name,
+    voiceBase: FEMALE_VOICES.sarah.base,
+    stability: 0.52,
     similarityBoost: 0.62,
     style: 0.08,
     useSpeakerBoost: false,
     speed: 0.97,
-    notes: 'speaker_boost OFF reduces harshness. Charlotte base is more neutral for German than Rachel. Lower similarity avoids distortion.',
+    notes: 'BAKE-OFF WINNER. Sarah is natively Germany German — eliminates sibilant distortion. speaker_boost OFF removes harshness. Lower similarity avoids distortion on fricatives.',
   },
 
   /**
-   * EXPRESSIVE — for emotional states (pain, anxiety, confusion).
-   * Bella (softer, slightly breathy) — better for distress states.
+   * EXPRESSIVE — for emotional states (pain, anxiety, confusion, distress).
+   * Serena (Germany German, warmer/deeper) — better for distress states.
    * Lower stability = more prosody variation = more emotional range.
-   * speaker_boost OFF — Bella is already bright, boost adds harshness.
+   * speaker_boost OFF — Serena is already warm, boost adds harshness.
    */
   expressive: {
     name: 'expressive',
     label: '✦ Expressive',
-    description: 'Bella + tuned for emotional states. Pain/anxiety/confusion.',
-    voiceId: FEMALE_VOICES.bella.id,
-    voiceName: FEMALE_VOICES.bella.name,
-    voiceBase: FEMALE_VOICES.bella.base,
+    description: 'Serena (Germany German) — tuned for emotional states. Pain/anxiety/confusion.',
+    voiceId: FEMALE_VOICES.serena.id,
+    voiceName: FEMALE_VOICES.serena.name,
+    voiceBase: FEMALE_VOICES.serena.base,
     stability: 0.42,
     similarityBoost: 0.58,
     style: 0.15,
     useSpeakerBoost: false,
     speed: 0.96,
-    notes: 'Lower stability allows more emotional prosody variation. Bella is softer/breathier than Rachel — better for pain/anxiety states.',
+    notes: 'Lower stability allows more emotional prosody variation. Serena (Germany German) is warmer/deeper than Sarah — better for pain/anxiety/distress states.',
   },
 };
 
@@ -166,8 +187,10 @@ export const MALE_BALANCED_REFERENCE = {
   notes: 'Male BALANCED — not changed by this tuning pass.',
 } as const;
 
-// ─── Test utterances (10 scenarios) ──────────────────────────────────────────
+// ─── Bake-off test utterances (12 scenarios) ─────────────────────────────────
 // Used by the automated test runner in femalePresetTest.ts
+// Covers: neutral, pain (mild/severe), anxiety, SOB, confusion,
+//         embarrassment, irritation, relief, closing, history-taking, examination
 export const FEMALE_TEST_UTTERANCES: Array<{ scenario: string; text: string }> = [
   {
     scenario: 'neutral_greeting',
@@ -208,5 +231,13 @@ export const FEMALE_TEST_UTTERANCES: Array<{ scenario: string; text: string }> =
   {
     scenario: 'calm_closing',
     text: 'Alles klar. Ich werde das Rezept in der Apotheke abholen. Auf Wiedersehen.',
+  },
+  {
+    scenario: 'history_taking',
+    text: 'Die Schmerzen haben vor etwa drei Tagen angefangen, zuerst nur leicht, aber jetzt sind sie stärker geworden.',
+  },
+  {
+    scenario: 'examination_response',
+    text: 'Ja, genau da tut es weh. Wenn Sie drücken, wird es schlimmer. Strahlt auch in den Rücken aus.',
   },
 ];

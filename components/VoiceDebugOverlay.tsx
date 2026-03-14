@@ -3,10 +3,11 @@
  * ─────────────────────────────────────────────────────────────────────────────
  * Development-only debug panel (zero cost in production).
  *
- * FEMALE TUNING PASS additions:
+ * FEMALE STRATEGY REPLACEMENT additions:
  *  • Female preset toggle (🛡 Safe / ⚖ Balanced / ✦ Expressive)
+ *  • Bake-off winner badge: Sarah (Germany German) shown when balanced active
  *  • Per-turn: stability, similarity, style, speaker_boost, voice base
- *  • Female preset badge
+ *  • Female preset badge with active voice name
  *  • Preset toggle only shown when isFemaleScenario=true
  *
  * Existing fields:
@@ -72,7 +73,7 @@ export default function VoiceDebugOverlay({
   const mode         = (lastGenDone?.mode ?? lastProvider?.mode ?? 'unknown') as QualityMode | 'unknown';
   const genMs        = lastGenDone?.generationMs ?? null;
 
-  // Extended fields from female tuning pass (cast via any — tRPC response)
+  // Extended fields from female strategy replacement (cast via any — tRPC response)
   const extGen = lastGenDone as any;
   const stability      = extGen?.stability ?? null;
   const similarityVal  = extGen?.similarityBoost ?? null;
@@ -87,6 +88,9 @@ export default function VoiceDebugOverlay({
 
   const modeColor   = MODE_COLOR[mode] ?? MODE_COLOR.unknown;
   const presetColor = resolvedPreset ? PRESET_COLOR[resolvedPreset] : '#888';
+
+  // Show bake-off winner badge when balanced preset is active
+  const isWinnerActive = resolvedPreset === 'balanced' || femalePreset === 'balanced';
 
   return (
     <View style={styles.container} pointerEvents="box-none">
@@ -121,6 +125,12 @@ export default function VoiceDebugOverlay({
           {resolvedPreset && (
             <Text style={[styles.presetActive, { color: presetColor }]}>
               Active: {resolvedPreset.toUpperCase()} — {FEMALE_PRESETS[resolvedPreset]?.voiceName ?? '?'}
+              {resolvedPreset === 'balanced' ? ' ★' : ''}
+            </Text>
+          )}
+          {isWinnerActive && (
+            <Text style={styles.winnerBadge}>
+              ★ Bake-off winner · Germany German
             </Text>
           )}
         </View>
@@ -142,7 +152,7 @@ export default function VoiceDebugOverlay({
         </Text>
       </View>
 
-      {/* ── Voice settings (female tuning pass) ── */}
+      {/* ── Voice settings (female strategy replacement) ── */}
       {stability !== null && (
         <>
           <Text style={styles.sectionLabel}>Voice Settings</Text>
@@ -249,6 +259,12 @@ const styles = StyleSheet.create({
     fontSize: 9,
     marginTop: 3,
     fontWeight: '600',
+  },
+  winnerBadge: {
+    fontSize: 8,
+    color: '#00d4aa',
+    marginTop: 2,
+    fontStyle: 'italic',
   },
   sectionLabel: {
     color: '#666',
