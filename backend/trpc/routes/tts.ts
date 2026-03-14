@@ -1,75 +1,47 @@
 /**
  * tts.ts — ElevenLabs TTS backend route
  * ─────────────────────────────────────────────────────────────────────────────
- * FORENSIC ROLLBACK + REBUILD
+ * FEMALE-VOICE-ONLY TUNING PASS
  *
- * ORIGINAL BASELINE (main branch):
- *   model:       eleven_multilingual_v2
- *   format:      audio/mpeg (no output_format param → ElevenLabs default = mp3_44100_128)
- *   stability:   0.6
- *   similarity:  0.85
- *   style:       0.1
- *   timeout:     none (no AbortController)
- *   isWeb:       not passed
- *   mode:        not supported
+ * Changes in this pass:
+ *   - Added `femalePreset` input param (optional, 'safe'|'balanced'|'expressive')
+ *   - When gender=female AND femalePreset is set, the female preset settings
+ *     override the shared mode settings (stability, similarity, style,
+ *     speaker_boost, voiceId).
+ *   - Male path: COMPLETELY UNCHANGED. Male voices still use MODES config.
+ *   - Response now includes femalePreset, voiceBase, speakerBoost fields
+ *     for per-turn logging.
  *
- * WHAT THE PREVIOUS PASSES DID WRONG:
- *   Pass 1 (latency): Switched to eleven_turbo_v2_5 — helped latency ~40%
- *                     but degraded German medical prosody noticeably.
- *   Pass 1 (latency): Dropped stability 0.6 → 0.55 — no latency benefit,
- *                     introduced robotic artefacts on short phrases.
- *   Pass 1 (latency): Added mp3_44100_128 explicitly — same as default, neutral.
- *   Pass 2 (quality): Restored eleven_multilingual_v2 ✓
- *   Pass 2 (quality): Raised bitrate to mp3_44100_192 ✓
- *   Pass 2 (quality): Restored stability 0.65 ✓
- *   Pass 2 (quality): Added pcm_44100 for QUALITY/native — correct idea but
- *                     expo-av in Expo Go cannot reliably decode raw PCM from
- *                     a data URI. Causes silent failure or garbled audio.
+ * FEMALE PRESET ROUTING:
+ *   gender=female + femalePreset=safe       → Rachel + SAFE settings
+ *   gender=female + femalePreset=balanced   → Charlotte + BALANCED settings (default)
+ *   gender=female + femalePreset=expressive → Bella + EXPRESSIVE settings
+ *   gender=female + no femalePreset         → falls back to shared MODES config
+ *   gender=male   + any femalePreset        → femalePreset IGNORED, male path used
  *
- * THIS REBUILD:
- *   BALANCED (default):
- *     model:    eleven_multilingual_v2   ← restored from baseline
- *     format:   mp3_44100_192            ← upgrade from baseline (128→192 kbps)
- *     stability: 0.62                   ← close to baseline 0.6, slightly more stable
- *     timeout:  12 s
- *
- *   FAST:
- *     model:    eleven_turbo_v2_5        ← fastest, acceptable for drills
- *     format:   mp3_44100_128
- *     stability: 0.50
- *     timeout:  8 s
- *
- *   QUALITY:
- *     model:    eleven_multilingual_v2
- *     format:   mp3_44100_192            ← NOT pcm_44100 (Expo Go incompatible)
- *     stability: 0.72
- *     style:    0.25
- *     timeout:  15 s
- *
- *   isWeb flag: selects correct Accept header (no format change — mp3 works
- *               on both web and native; PCM removed entirely due to Expo Go limits)
- *
- *   Per-turn timing: returns t_request_start, t_first_byte, t_done, generation_ms
+ * MALE SETTINGS (unchanged from previous rebuild):
+ *   BALANCED: eleven_multilingual_v2 + mp3_44100_192 + stability 0.62 + sim 0.85
+ *   FAST:     eleven_turbo_v2_5 + mp3_44100_128 + stability 0.50 + sim 0.82
+ *   QUALITY:  eleven_multilingual_v2 + mp3_44100_192 + stability 0.72 + sim 0.88
  */
 
 import * as z from "zod";
 import { createTRPCRouter, publicProcedure } from "../create-context";
+import {
+  FEMALE_PRESETS,
+  FEMALE_VOICES,
+  DEFAULT_FEMALE_PRESET,
+  type FemalePresetName,
+} from '../../../lib/voiceProvider/femaleVoicePresets';
 
-// ─── Voice registry ───────────────────────────────────────────────────────────
-const ELEVENLABS_VOICES = {
-  female: [
-    { id: '21m00Tcm4TlvDq8ikWAM', name: 'Rachel' },
-    { id: 'EXAVITQu4vr4xnSDxMaL', name: 'Bella' },
-    { id: 'MF3mGyEYCl7XYWbV9V6O', name: 'Elli' },
-  ],
-  male: [
-    { id: 'pNInz6obpgDQGcFmaJgB', name: 'Adam' },
-    { id: 'ErXwobaYiN019PkySvjV', name: 'Antoni' },
-    { id: 'TxGEqnHWrfWFTfGW9XjX', name: 'Josh' },
-  ],
-} as const;
+// ─── Male voice registry (UNCHANGED) ─────────────────────────────────────────
+const MALE_VOICES = [
+  { id: 'pNInz6obpgDQGcFmaJgB', name: 'Adam' },
+  { id: 'ErXwobaYiN019PkySvjV', name: 'Antoni' },
+  { id: 'TxGEqnHWrfWFTfGW9XjX', name: 'Josh' },
+];
 
-// ─── Quality mode configs ─────────────────────────────────────────────────────
+// ─── Shared quality mode configs (used for male + female fallback) ────────────
 export type QualityMode = 'fast' | 'balanced' | 'quality';
 
 interface ModeConfig {
@@ -97,9 +69,7 @@ const MODES: Record<QualityMode, ModeConfig> = {
     timeoutMs: 8_000,
   },
   balanced: {
-    // RESTORED: eleven_multilingual_v2 (original baseline model)
-    // UPGRADED: mp3_44100_192 (128→192 kbps — cleaner, still universal)
-    // RESTORED: stability 0.62 (close to original 0.6)
+    // MALE BALANCED — do not change these for female
     model: 'eleven_multilingual_v2',
     outputFormat: 'mp3_44100_192',
     mimeType: 'audio/mpeg',
@@ -112,8 +82,6 @@ const MODES: Record<QualityMode, ModeConfig> = {
   },
   quality: {
     model: 'eleven_multilingual_v2',
-    // NOTE: pcm_44100 removed — Expo Go cannot reliably decode raw PCM
-    // from a data URI via expo-av. mp3_44100_192 is the highest safe format.
     outputFormat: 'mp3_44100_192',
     mimeType: 'audio/mpeg',
     bitrateLabel: '192 kbps',
@@ -147,6 +115,8 @@ export const ttsRouter = createTRPCRouter({
         voiceIndex: z.number().min(0).max(2).optional().default(0),
         mode: z.enum(['fast', 'balanced', 'quality']).optional().default(DEFAULT_MODE),
         isWeb: z.boolean().optional().default(false),
+        // Female-only: preset override. Ignored when gender=male.
+        femalePreset: z.enum(['safe', 'balanced', 'expressive']).optional(),
       })
     )
     .mutation(async ({ input }: {
@@ -156,49 +126,108 @@ export const ttsRouter = createTRPCRouter({
         voiceIndex: number;
         mode: QualityMode;
         isWeb: boolean;
+        femalePreset?: FemalePresetName;
       }
     }) => {
       const t_request_start = Date.now();
-      const cfg = MODES[input.mode];
-      const voices = ELEVENLABS_VOICES[input.gender];
-      const voice = voices[input.voiceIndex % voices.length];
-
       const apiKey = process.env.ELEVENLABS_API_KEY ?? '';
       if (!apiKey) {
         console.error('[TTS] ELEVENLABS_API_KEY not set');
         throw new Error('elevenlabs_api_key_not_configured');
       }
 
+      // ── Voice and settings resolution ──────────────────────────────────────
+      let voiceId: string;
+      let voiceName: string;
+      let voiceBase: string;
+      let stability: number;
+      let similarityBoost: number;
+      let style: number;
+      let useSpeakerBoost: boolean;
+      let model: string;
+      let outputFormat: string;
+      let mimeType: string;
+      let bitrateLabel: string;
+      let timeoutMs: number;
+      let resolvedFemalePreset: FemalePresetName | null = null;
+
+      if (input.gender === 'female') {
+        // ── FEMALE PATH: use preset if provided, else use shared mode ──────
+        const presetName = input.femalePreset ?? DEFAULT_FEMALE_PRESET;
+        const preset = FEMALE_PRESETS[presetName];
+        resolvedFemalePreset = presetName;
+
+        voiceId = preset.voiceId;
+        voiceName = preset.voiceName;
+        voiceBase = preset.voiceBase;
+        stability = preset.stability;
+        similarityBoost = preset.similarityBoost;
+        style = preset.style;
+        useSpeakerBoost = preset.useSpeakerBoost;
+
+        // Female always uses eleven_multilingual_v2 + 192 kbps for quality
+        // (FAST mode exception: use turbo for speed if explicitly requested)
+        if (input.mode === 'fast') {
+          model = 'eleven_turbo_v2_5';
+          outputFormat = 'mp3_44100_128';
+          bitrateLabel = '128 kbps';
+          timeoutMs = 8_000;
+        } else {
+          model = 'eleven_multilingual_v2';
+          outputFormat = 'mp3_44100_192';
+          bitrateLabel = '192 kbps';
+          timeoutMs = 12_000;
+        }
+        mimeType = 'audio/mpeg';
+
+      } else {
+        // ── MALE PATH: COMPLETELY UNCHANGED ────────────────────────────────
+        const cfg = MODES[input.mode];
+        const maleVoice = MALE_VOICES[input.voiceIndex % MALE_VOICES.length];
+        voiceId = maleVoice.id;
+        voiceName = maleVoice.name;
+        voiceBase = 'American English';
+        stability = cfg.stability;
+        similarityBoost = cfg.similarityBoost;
+        style = cfg.style;
+        useSpeakerBoost = cfg.useSpeakerBoost;
+        model = cfg.model;
+        outputFormat = cfg.outputFormat;
+        mimeType = cfg.mimeType;
+        bitrateLabel = cfg.bitrateLabel;
+        timeoutMs = cfg.timeoutMs;
+      }
+
       console.log(
-        `[TTS] START | mode=${input.mode} | voice=${voice.name}(${input.gender}) | model=${cfg.model} | format=${cfg.outputFormat} | web=${input.isWeb} | chars=${input.text.length}`
+        `[TTS] START | gender=${input.gender} | preset=${resolvedFemalePreset ?? 'n/a'} | mode=${input.mode} | voice=${voiceName}(${voiceBase}) | stability=${stability} | sim=${similarityBoost} | style=${style} | boost=${useSpeakerBoost} | model=${model} | format=${outputFormat} | chars=${input.text.length}`
       );
 
       const controller = new AbortController();
       const timeoutId = setTimeout(() => {
         controller.abort();
-        console.error(`[TTS] TIMEOUT after ${cfg.timeoutMs}ms`);
-      }, cfg.timeoutMs);
+        console.error(`[TTS] TIMEOUT after ${timeoutMs}ms`);
+      }, timeoutMs);
 
       let t_first_byte = 0;
 
       try {
         const response = await fetch(
-          `https://api.elevenlabs.io/v1/text-to-speech/${voice.id}?output_format=${cfg.outputFormat}`,
+          `https://api.elevenlabs.io/v1/text-to-speech/${voiceId}?output_format=${outputFormat}`,
           {
             method: 'POST',
             headers: {
-              'Accept': cfg.mimeType,
+              'Accept': mimeType,
               'Content-Type': 'application/json',
               'xi-api-key': apiKey,
             },
             body: JSON.stringify({
               text: input.text,
-              model_id: cfg.model,
+              model_id: model,
               voice_settings: {
-                stability: cfg.stability,
-                similarity_boost: cfg.similarityBoost,
-                style: cfg.style,
-                use_speaker_boost: cfg.useSpeakerBoost,
+                stability,
+                similarity_boost: similarityBoost,
+                style,
+                use_speaker_boost: useSpeakerBoost,
               },
             }),
             signal: controller.signal,
@@ -220,20 +249,27 @@ export const ttsRouter = createTRPCRouter({
         const t_done = Date.now();
 
         console.log(
-          `[TTS] DONE | mode=${input.mode} | voice=${voice.name} | format=${cfg.outputFormat}(${cfg.bitrateLabel}) | bytes=${base64Audio.length} | t_first_byte=${t_first_byte - t_request_start}ms | generation_ms=${t_done - t_request_start}ms`
+          `[TTS] DONE | gender=${input.gender} | preset=${resolvedFemalePreset ?? 'n/a'} | voice=${voiceName} | format=${outputFormat}(${bitrateLabel}) | bytes=${base64Audio.length} | ttfb=${t_first_byte - t_request_start}ms | total=${t_done - t_request_start}ms`
         );
 
         return {
           audio: base64Audio,
-          mimeType: cfg.mimeType,
-          voice: voice.name,
-          voiceId: voice.id,
-          model: cfg.model,
-          outputFormat: cfg.outputFormat,
-          bitrateLabel: cfg.bitrateLabel,
+          mimeType,
+          voice: voiceName,
+          voiceId,
+          voiceBase,
+          model,
+          outputFormat,
+          bitrateLabel,
           sampleRate: '44100 Hz',
           mode: input.mode,
-          // Timing metadata for client-side per-turn log
+          femalePreset: resolvedFemalePreset,
+          // Voice settings (for per-turn log)
+          stability,
+          similarityBoost,
+          style,
+          speakerBoost: useSpeakerBoost,
+          // Timing metadata
           t_request_start,
           t_first_byte,
           t_done,

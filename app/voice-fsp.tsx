@@ -53,6 +53,7 @@ import {
 import { speak as providerSpeak, cancelActiveTurn, VoiceEvent } from '@/lib/voiceProvider/providerManager';
 import { TurnLogger } from '@/lib/voiceProvider/turnLogger';
 import VoiceDebugOverlay from '@/components/VoiceDebugOverlay';
+import { DEFAULT_FEMALE_PRESET, type FemalePresetName } from '@/lib/voiceProvider/femaleVoicePresets';
 
 
 
@@ -302,6 +303,9 @@ export default function VoiceFSPScreen() {
   // Quality mode: 'fast' | 'balanced' | 'quality' — default BALANCED
   const [voiceQualityMode, setVoiceQualityMode] = useState<'fast' | 'balanced' | 'quality'>('balanced');
 
+  // Female preset (dev-only tuning toggle — does not affect male path)
+  const [femalePreset, setFemalePreset] = useState<FemalePresetName>(DEFAULT_FEMALE_PRESET);
+
   const elevenLabsMutation = trpc.tts.speakElevenLabs.useMutation();
 
   useEffect(() => {
@@ -509,6 +513,8 @@ export default function VoiceFSPScreen() {
         elevenLabsCaller: (params) => elevenLabsMutation.mutateAsync({
           ...params,
           isWeb: Platform.OS === 'web',
+          // Pass female preset only when gender=female; ignored for male
+          ...(params.gender === 'female' ? { femalePreset } : {}),
         }),
         onEvent: (e) => {
           addVoiceEvent(e);
@@ -1211,7 +1217,12 @@ export default function VoiceFSPScreen() {
       </View>
 
       {/* Dev-only voice debug overlay */}
-      <VoiceDebugOverlay events={voiceEvents} />
+      <VoiceDebugOverlay
+        events={voiceEvents}
+        femalePreset={femalePreset}
+        onFemalePresetChange={setFemalePreset}
+        isFemaleScenario={currentScenario?.gender === 'female'}
+      />
     </SafeAreaView>
   );
 }
