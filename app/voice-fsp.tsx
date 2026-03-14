@@ -50,6 +50,10 @@ import {
   prepareTextForTTS,
   detectEmotionalState,
 } from '@/constants/voiceProfiles';
+import { speak as providerSpeak, cancelActiveTurn, VoiceEvent } from '@/lib/voiceProvider/providerManager';
+import { TurnLogger } from '@/lib/voiceProvider/turnLogger';
+import VoiceDebugOverlay from '@/components/VoiceDebugOverlay';
+import { DEFAULT_FEMALE_PRESET, type FemalePresetName } from '@/lib/voiceProvider/femaleVoicePresets';
 
 
 
@@ -286,9 +290,22 @@ export default function VoiceFSPScreen() {
   
   const recordingRef = useRef<Audio.Recording | null>(null);
   const scrollViewRef = useRef<ScrollView>(null);
+  // soundRef and webAudioRef are now managed inside providerManager
   const soundRef = useRef<Audio.Sound | null>(null);
   const webAudioRef = useRef<HTMLAudioElement | null>(null);
-  
+  // Active TurnLogger — created per turn, lives until playback_end
+  const activeTurnLoggerRef = useRef<TurnLogger | null>(null);
+
+  // Debug overlay event log (dev-only)
+  const [voiceEvents, setVoiceEvents] = useState<VoiceEvent[]>([]);
+  const addVoiceEvent = (e: VoiceEvent) => setVoiceEvents(prev => [...prev.slice(-30), e]);
+
+  // Quality mode: 'fast' | 'balanced' | 'quality' — default BALANCED
+  const [voiceQualityMode, setVoiceQualityMode] = useState<'fast' | 'balanced' | 'quality'>('balanced');
+
+  // Female preset (dev-only tuning toggle — does not affect male path)
+  const [femalePreset, setFemalePreset] = useState<FemalePresetName>(DEFAULT_FEMALE_PRESET);
+
   const elevenLabsMutation = trpc.tts.speakElevenLabs.useMutation();
 
   useEffect(() => {
@@ -297,15 +314,8 @@ export default function VoiceFSPScreen() {
       if (recordingRef.current) {
         recordingRef.current.stopAndUnloadAsync();
       }
-      Speech.stop();
-      if (soundRef.current) {
-        soundRef.current.stopAsync();
-        soundRef.current.unloadAsync();
-      }
-      if (webAudioRef.current) {
-        webAudioRef.current.pause();
-        webAudioRef.current = null;
-      }
+      // Cancel any active provider turn on unmount
+      cancelActiveTurn('user_interrupt');
     };
   }, []);
 
@@ -465,152 +475,69 @@ export default function VoiceFSPScreen() {
     console.log(`[VoiceFSP] Session started with ${scenario.name}, voice: ${voice.name} (${voice.age}), gender: ${scenario.gender}`);
   };
 
+  /**
+   * speakTextEnhanced — now delegates to providerManager.speak().
+   *
+   * The provider manager handles:
+   *  - Turn ownership (only latest turn plays)
+   *  - Stale cancellation
+   *  - ElevenLabs primary with timeout + 1 retry
+   *  - expo-speech fallback (never silent)
+   *  - Debug event emission
+   */
+  /**
+   * Internal: speaks with an existing TurnLogger (for STT→LLM→TTS continuity).
+   */
+  const speakTextEnhancedWithLogger = async (
+    text: string,
+    voice: VoiceProfile,
+    emotionalState: EmotionalState,
+    patientGender: 'female' | 'male' = 'female',
+    logger?: TurnLogger
+  ) => {
+    setIsSpeaking(true);
+    const ttsText = prepareTextForTTS(text, emotionalState);
+    console.log(`[VoiceFSP] Speaking: "${ttsText.substring(0, 50)}..." | voice: ${voice.name} | state: ${emotionalState} | gender: ${patientGender}`);
+
+    // Use provided logger (from STT turn) or create a new one
+    const activeLogger = logger ?? new TurnLogger();
+    activeTurnLoggerRef.current = activeLogger;
+
+    try {
+      await providerSpeak({
+        text: ttsText,
+        gender: patientGender,
+        voiceIndex: 0,
+        mode: voiceQualityMode,
+        turnLogger: activeLogger,
+        elevenLabsCaller: (params) => elevenLabsMutation.mutateAsync({
+          ...params,
+          isWeb: Platform.OS === 'web',
+          // Pass female preset only when gender=female; ignored for male
+          ...(params.gender === 'female' ? { femalePreset } : {}),
+        }),
+        onEvent: (e) => {
+          addVoiceEvent(e);
+          // Print the full turn log when playback ends
+          if (e.type === 'tts_playback_complete' || e.type === 'tts_stale_cancelled') {
+            activeLogger.print();
+          }
+        },
+      });
+    } catch (err) {
+      console.warn('[VoiceFSP] providerSpeak error (should not reach here):', err);
+    } finally {
+      setIsSpeaking(false);
+    }
+  };
+
   const speakTextEnhanced = async (
     text: string,
     voice: VoiceProfile,
     emotionalState: EmotionalState,
     patientGender: 'female' | 'male' = 'female'
   ) => {
-    try {
-      setIsSpeaking(true);
-      
-      const ttsText = prepareTextForTTS(text, emotionalState);
-      
-      console.log(`[VoiceFSP] Speaking: "${ttsText.substring(0, 50)}..." with ${voice.name} (${emotionalState}) - ${patientGender} patient`);
-      
-      await speakWithCloudTTS(ttsText, patientGender);
-    } catch (error) {
-      console.log('[VoiceFSP] Speech error:', error);
-      setIsSpeaking(false);
-    }
-  };
-
-  const speakWithCloudTTS = async (
-    text: string,
-    patientGender: 'female' | 'male'
-  ) => {
-    try {
-      console.log('[VoiceFSP] Calling ElevenLabs TTS for', patientGender);
-      
-      // Use consistent voice (index 0) to avoid tone changes between messages
-      const result = await elevenLabsMutation.mutateAsync({
-        text,
-        gender: patientGender,
-        voiceIndex: 0,
-      });
-      
-      console.log(`[VoiceFSP] ElevenLabs response received, voice: ${result.voice}`);
-      
-      const audioUri = `data:${result.mimeType};base64,${result.audio}`;
-      
-      // Web: Use HTML5 Audio for better compatibility
-      if (Platform.OS === 'web') {
-        // Cleanup any existing web audio
-        if (webAudioRef.current) {
-          webAudioRef.current.pause();
-          webAudioRef.current = null;
-        }
-        
-        console.log('[VoiceFSP] Creating web Audio with data URI, length:', audioUri.length);
-        
-        const audio = new Audio();
-        audio.preload = 'auto';
-        webAudioRef.current = audio;
-        
-        // Set up error handler first
-        audio.onerror = () => {
-          console.log('[VoiceFSP] Web audio error:', audio.error, 'message:', audio.error?.message);
-        };
-        
-        // Load the audio
-        audio.src = audioUri;
-        audio.load();
-        
-        // Play and wait
-        try {
-          const playPromise = audio.play();
-          if (playPromise !== undefined) {
-            await playPromise;
-          }
-          console.log('[VoiceFSP] Web audio started playing');
-          
-          // Wait for playback to finish
-          await new Promise<void>((resolve) => {
-            audio.onended = () => {
-              console.log('[VoiceFSP] ElevenLabs web playback completed');
-              setIsSpeaking(false);
-              webAudioRef.current = null;
-              resolve();
-            };
-          });
-        } catch (playError) {
-          console.log('[VoiceFSP] Web audio play error:', playError);
-          throw playError; // Re-throw to trigger fallback
-        }
-        
-        return;
-      }
-      
-      // Native: Use expo-av as before
-      if (soundRef.current) {
-        await soundRef.current.stopAsync();
-        await soundRef.current.unloadAsync();
-        soundRef.current = null;
-      }
-      
-      const { sound } = await Audio.Sound.createAsync(
-        { uri: audioUri },
-        { shouldPlay: true }
-      );
-      
-      soundRef.current = sound;
-      
-      sound.setOnPlaybackStatusUpdate((status: import('expo-av').AVPlaybackStatus) => {
-        if (status.isLoaded && status.didJustFinish) {
-          console.log('[VoiceFSP] ElevenLabs native playback completed');
-          setIsSpeaking(false);
-          sound.unloadAsync();
-          soundRef.current = null;
-        }
-      });
-    } catch (error) {
-      console.log('[VoiceFSP] ElevenLabs TTS error, falling back to expo-speech:', error);
-      await speakWithExpoSpeechFallback(text, patientGender);
-    }
-  };
-
-  const speakWithExpoSpeechFallback = async (
-    text: string,
-    patientGender: 'female' | 'male'
-  ) => {
-    try {
-      await Speech.stop();
-      
-      const finalPitch = patientGender === 'female' ? 1.3 : 0.55;
-      const finalRate = patientGender === 'female' ? 1.0 : 0.88;
-      
-      console.log('[VoiceFSP] Fallback expo-speech for', patientGender);
-      
-      await Speech.speak(text, {
-        language: 'de-DE',
-        pitch: finalPitch,
-        rate: finalRate,
-        onDone: () => {
-          console.log('[VoiceFSP] Fallback speech completed');
-          setIsSpeaking(false);
-        },
-        onError: (error: Error) => {
-          console.log('[VoiceFSP] Fallback speech error:', error);
-          setIsSpeaking(false);
-        },
-        onStopped: () => {
-          setIsSpeaking(false);
-        },
-      });
-    } catch (error) {
-      console.log('[VoiceFSP] Fallback speech error:', error);
-      setIsSpeaking(false);
-    }
+    await speakTextEnhancedWithLogger(text, voice, emotionalState, patientGender);
   };
 
   const speakText = async (text: string) => {
@@ -661,6 +588,12 @@ export default function VoiceFSPScreen() {
         web: {},
       });
 
+      // Interrupt any currently playing patient turn when the doctor taps mic
+      if (isSpeaking) {
+        await cancelActiveTurn('user_interrupt');
+        setIsSpeaking(false);
+      }
+
       recordingRef.current = recording;
       setIsRecording(true);
       console.log('Recording started');
@@ -676,6 +609,11 @@ export default function VoiceFSPScreen() {
     try {
       setIsRecording(false);
       setIsProcessing(true);
+
+      // Mark user speech end for per-turn timing
+      const logger = new TurnLogger();
+      activeTurnLoggerRef.current = logger;
+      logger.mark('user_speech_end');
       
       await recordingRef.current.stopAndUnloadAsync();
       const uri = recordingRef.current.getURI();
@@ -686,7 +624,7 @@ export default function VoiceFSPScreen() {
       });
 
       if (uri) {
-        await processAudio(uri);
+        await processAudio(uri, logger);
       }
     } catch (error) {
       console.log('Failed to stop recording:', error);
@@ -694,7 +632,7 @@ export default function VoiceFSPScreen() {
     }
   };
 
-  const processAudio = async (uri: string) => {
+  const processAudio = async (uri: string, logger?: TurnLogger) => {
     try {
       const formData = new FormData();
       const uriParts = uri.split('.');
@@ -709,6 +647,7 @@ export default function VoiceFSPScreen() {
       formData.append('audio', audioFile as any);
       formData.append('language', 'de');
 
+      logger?.mark('stt_start');
       const response = await fetch('https://toolkit.rork.com/stt/transcribe/', {
         method: 'POST',
         body: formData,
@@ -719,10 +658,11 @@ export default function VoiceFSPScreen() {
       }
 
       const data = await response.json();
+      logger?.mark('stt_end');
       const transcribedText = data.text;
 
       if (transcribedText && transcribedText.trim()) {
-        await handleDoctorMessage(transcribedText);
+        await handleDoctorMessage(transcribedText, logger);
       } else {
         Alert.alert('Hinweis', 'Keine Sprache erkannt. Bitte sprechen Sie deutlicher.');
         setIsProcessing(false);
@@ -734,7 +674,7 @@ export default function VoiceFSPScreen() {
     }
   };
 
-  const handleDoctorMessage = async (text: string) => {
+  const handleDoctorMessage = async (text: string, logger?: TurnLogger) => {
     const hint = analyzeForPronunciationHints(text);
     if (hint) {
       showHint(hint);
@@ -753,14 +693,20 @@ export default function VoiceFSPScreen() {
       scrollViewRef.current?.scrollToEnd({ animated: true });
     }, 100);
 
-    await generatePatientResponse(text);
+    await generatePatientResponse(text, logger);
   };
 
-  const generatePatientResponse = async (doctorInput: string) => {
+  const generatePatientResponse = async (doctorInput: string, logger?: TurnLogger) => {
+    // Capture a generation ID so we can discard stale responses if the user
+    // taps mic again before this async chain completes.
+    const genId = Date.now();
+    const genIdRef = genId; // closure capture
+
     try {
       const newEmotionalState = detectEmotionalState(doctorInput, settings.personality);
       setCurrentEmotionalState(newEmotionalState);
       
+      // Snapshot messages at call time to avoid stale closure over growing array
       const conversationHistory = messages.map(m => ({
         role: m.role === 'arzt' ? 'user' as const : 'assistant' as const,
         content: m.content,
@@ -768,6 +714,7 @@ export default function VoiceFSPScreen() {
 
       const systemPrompt = createPatientPrompt(currentScenario, settings.personality, newEmotionalState);
 
+      logger?.mark('llm_start');
       const response = await generateText({
         messages: [
           { role: 'user', content: systemPrompt },
@@ -776,9 +723,15 @@ export default function VoiceFSPScreen() {
           { role: 'user', content: doctorInput },
         ],
       });
+      logger?.mark('llm_end');
+
+      // Discard if a newer generation has already started
+      if (!isProcessing) {
+        console.log('[VoiceFSP] Discarding stale AI response (genId:', genIdRef, ')');
+        return;
+      }
 
       let patientResponse = response || 'Entschuldigung, können Sie das bitte wiederholen?';
-      
       patientResponse = processTextForNaturalSpeech(patientResponse, newEmotionalState, settings.personality);
 
       const patientMessage: FSPMessage = {
@@ -795,8 +748,10 @@ export default function VoiceFSPScreen() {
         scrollViewRef.current?.scrollToEnd({ animated: true });
       }, 100);
 
-      console.log(`[VoiceFSP] Patient response with emotional state: ${newEmotionalState}`);
-      await speakTextEnhanced(patientResponse, currentVoice, newEmotionalState, currentScenario.gender);
+      console.log(`[VoiceFSP] Patient response | emotional state: ${newEmotionalState} | genId: ${genIdRef}`);
+      // providerManager will cancel any stale audio before playing this turn
+      // Pass the same logger so TTS timing marks continue in the same turn log
+      await speakTextEnhancedWithLogger(patientResponse, currentVoice, newEmotionalState, currentScenario.gender, logger);
     } catch (error) {
       console.log('[VoiceFSP] AI generation error:', error);
       const fallbackResponses = [
@@ -831,13 +786,11 @@ export default function VoiceFSPScreen() {
   const resetSession = async () => {
     setMessages([]);
     setShowSettings(true);
-    Speech.stop();
-    if (soundRef.current) {
-      await soundRef.current.stopAsync();
-      await soundRef.current.unloadAsync();
-      soundRef.current = null;
-    }
+    // Cancel any active provider turn (stops web audio, native sound, expo-speech)
+    await cancelActiveTurn('user_interrupt');
+    setIsSpeaking(false);
     setCurrentEmotionalState('neutral');
+    setVoiceEvents([]);
   };
 
   const replayLastPatient = () => {
@@ -1126,6 +1079,27 @@ export default function VoiceFSPScreen() {
         </TouchableOpacity>
       </View>
 
+      {/* Quality mode toggle — visible to user */}
+      <View style={styles.qualityModeRow}>
+        {(['fast', 'balanced', 'quality'] as const).map((m) => (
+          <TouchableOpacity
+            key={m}
+            style={[
+              styles.qualityModeBtn,
+              voiceQualityMode === m && styles.qualityModeBtnActive,
+            ]}
+            onPress={() => setVoiceQualityMode(m)}
+          >
+            <Text style={[
+              styles.qualityModeBtnText,
+              voiceQualityMode === m && styles.qualityModeBtnTextActive,
+            ]}>
+              {m === 'fast' ? '⚡ Fast' : m === 'balanced' ? '⚖ Balanced' : '✦ Quality'}
+            </Text>
+          </TouchableOpacity>
+        ))}
+      </View>
+
       <ScrollView
         ref={scrollViewRef}
         style={styles.messagesContainer}
@@ -1241,6 +1215,14 @@ export default function VoiceFSPScreen() {
           </View>
         )}
       </View>
+
+      {/* Dev-only voice debug overlay */}
+      <VoiceDebugOverlay
+        events={voiceEvents}
+        femalePreset={femalePreset}
+        onFemalePresetChange={setFemalePreset}
+        isFemaleScenario={currentScenario?.gender === 'female'}
+      />
     </SafeAreaView>
   );
 }
@@ -1809,5 +1791,38 @@ const styles = StyleSheet.create({
     fontSize: 14,
     color: Colors.dark.text,
     lineHeight: 20,
+  },
+  qualityModeRow: {
+    flexDirection: 'row',
+    justifyContent: 'center',
+    alignItems: 'center',
+    gap: 6,
+    paddingHorizontal: 16,
+    paddingVertical: 6,
+    backgroundColor: 'rgba(255,255,255,0.03)',
+    borderBottomWidth: 1,
+    borderBottomColor: 'rgba(255,255,255,0.06)',
+  },
+  qualityModeBtn: {
+    flex: 1,
+    paddingVertical: 5,
+    paddingHorizontal: 8,
+    borderRadius: 8,
+    borderWidth: 1,
+    borderColor: 'rgba(255,255,255,0.12)',
+    alignItems: 'center',
+  },
+  qualityModeBtnActive: {
+    backgroundColor: 'rgba(0, 180, 216, 0.18)',
+    borderColor: Colors.dark.primary,
+  },
+  qualityModeBtnText: {
+    fontSize: 11,
+    color: Colors.dark.textMuted,
+    fontWeight: '500',
+  },
+  qualityModeBtnTextActive: {
+    color: Colors.dark.primary,
+    fontWeight: '700',
   },
 });
